@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="A spaced-repetition spelling game for kids." />
+    <title>Dino Speller</title>
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">Spaced-repetition spelling</p>
+        <h1>Dino Speller</h1>
+        <p class="lede">Hear a word, spell it, master it, and earn Danger Deck creature cards.</p>
+      </div>
+      <button class="secondary-button" id="resetButton" type="button">Reset progress</button>
+    </header>
+
+    <main class="layout">
+      <section class="game-card" aria-labelledby="practiceTitle">
+        <div class="game-card__topline">
+          <h2 id="practiceTitle">Practice word</h2>
+          <span class="pill" id="dueCount">0 queued</span>
+        </div>
+
+        <div id="restingPanel" class="resting-panel" hidden>
+          <p class="resting-panel__title">All words mastered.</p>
+          <p id="nextDueText">You mastered every word in the deck. Great work!</p>
+          <button class="primary-button" id="refreshButton" type="button">Refresh</button>
+        </div>
+
+        <div id="practicePanel">
+          <div class="prompt-box">
+            <p class="prompt-label">Spell the word you hear</p>
+            <p class="word-length" id="wordLength">Word length: —</p>
+            <p class="context-clue" id="contextClue"></p>
+            <div class="streak-eggs" aria-label="Current correct streak" id="streakEggs"></div>
+          </div>
+
+          <div class="button-row">
+            <button class="primary-button" id="speakButton" type="button">🔊 Hear word</button>
+            <button class="secondary-button" id="hintButton" type="button">Show hint</button>
+            <button class="secondary-button" id="skipButton" type="button">Skip</button>
+          </div>
+
+          <p class="hint" id="hintText" aria-live="polite"></p>
+
+          <form id="spellForm" autocomplete="off">
+            <label for="answerInput">Your spelling</label>
+            <div class="input-row">
+              <input id="answerInput" name="answer" type="text" inputmode="text" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" required />
+              <button class="primary-button" type="submit">Submit</button>
+            </div>
+          </form>
+
+          <div class="feedback" id="feedback" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <aside class="stats-card" aria-labelledby="statsTitle">
+        <h2 id="statsTitle">Progress</h2>
+        <div class="stats-grid">
+          <div>
+            <span class="stat-number" id="pointsTotal">0</span>
+            <span class="stat-label">points</span>
+          </div>
+          <div>
+            <span class="stat-number" id="masteredTotal">0</span>
+            <span class="stat-label">mastered</span>
+          </div>
+          <div>
+            <span class="stat-number" id="cardsTotal">0</span>
+            <span class="stat-label">cards</span>
+          </div>
+          <div>
+            <span class="stat-number" id="wordsTotal">0</span>
+            <span class="stat-label">words</span>
+          </div>
+        </div>
+
+        <div class="progress-block">
+          <div class="progress-copy">
+            <span>Next creature card</span>
+            <strong id="nextCardText">0 / 30</strong>
+          </div>
+          <div class="progress-track" aria-hidden="true">
+            <div class="progress-fill" id="cardProgress"></div>
+          </div>
+        </div>
+
+        <p class="small-note">Earn points every time a word is spelt correctly. A word is mastered after three correct spellings in a row.</p>
+      </aside>
+
+      <section class="album-card" aria-labelledby="albumTitle">
+        <div class="game-card__topline">
+          <h2 id="albumTitle">Danger Deck cards</h2>
+          <span class="pill" id="latestCardBadge">None yet</span>
+        </div>
+        <div class="card-album" id="cardAlbum"></div>
+      </section>
+    </main>
+
+    <template id="dinoCardTemplate">
+      <article class="dino-card">
+        <div class="dino-card__icon"></div>
+        <h3></h3>
+        <p></p>
+        <span></span>
+      </article>
+    </template>
+
+    <script src="src/words.js"></script>
+    <script src="src/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "dino-speller",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A spaced-repetition spelling game for kids using common English words.",
+  "scripts": {
+    "start": "node scripts/dev-server.mjs",
+    "test": "node tests/words.test.js"
+  },
+  "license": "MIT"
+}
