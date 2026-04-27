@@ -12,7 +12,7 @@
       <div>
         <p class="eyebrow">Spaced-repetition spelling</p>
         <h1>Dino Speller</h1>
-        <p class="lede">Hear a word, spell it, earn points every time you get it right, then spend those points in the Danger Shop on scary creature cards with real artwork.</p>
+        <p class="lede">Hear a word twice, spell it, earn points every time you get it right, then spend those points in the Danger Shop on mystery creature cards.</p>
       </div>
       <button class="secondary-button" id="resetButton" type="button">Reset progress</button>
     </header>
@@ -39,9 +39,14 @@
           </div>
 
           <div class="button-row">
-            <button class="primary-button" id="speakButton" type="button">🔊 Hear word</button>
+            <button class="primary-button" id="speakButton" type="button">🔊 Hear word twice</button>
             <button class="secondary-button" id="hintButton" type="button">Show hint</button>
             <button class="secondary-button" id="skipButton" type="button">Skip</button>
+          </div>
+
+          <div class="voice-control" id="voiceControl" hidden>
+            <label for="voiceSelect">Speech voice</label>
+            <select id="voiceSelect" aria-label="Speech voice"></select>
           </div>
 
           <p class="hint" id="hintText" aria-live="polite"></p>
@@ -89,7 +94,7 @@
           </div>
         </div>
 
-        <p class="small-note">A 3-letter word gives 1 point, a 4-letter word gives 2 points, and so on. Every card costs 30 points. The shop starts with 10 cards, and 10 more unlock whenever you own all but 5 of the currently available cards.</p>
+        <p class="small-note">Cards cost 30 points. The shop starts with 10 cards, and 10 more unlock whenever you own all but 5 of the currently available cards.</p>
       </aside>
 
       <section class="shop-card" aria-labelledby="shopTitle">
@@ -115,6 +120,7 @@
       <article class="monster-card">
         <div class="monster-card__art">
           <img class="monster-card__image" alt="" />
+          <strong class="monster-card__mystery-mark" aria-hidden="true">?</strong>
           <span class="monster-card__art-badge"></span>
           <span class="monster-card__tagline"></span>
         </div>
@@ -154,6 +160,7 @@
       <article class="monster-card monster-card--owned">
         <div class="monster-card__art">
           <img class="monster-card__image" alt="" />
+          <strong class="monster-card__mystery-mark" aria-hidden="true">?</strong>
           <span class="monster-card__art-badge"></span>
           <span class="monster-card__tagline"></span>
         </div>

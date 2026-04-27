@@ -3,8 +3,10 @@
 
   const WORDS = window.SPELLING_WORDS || [];
 
-  const STORAGE_KEY = "dino-speller-state-v6";
+  const STORAGE_KEY = "dino-speller-state-v7";
+  const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
   const LEGACY_STORAGE_KEYS = [
+    "dino-speller-state-v6",
     "dino-speller-state-v5",
     "dino-speller-state-v4",
     "dino-speller-state-v3",
@@ -24,51 +26,458 @@
   const AUTO_ADVANCE_MS = 1500;
 
   const CREATURE_CARD_TEMPLATES = Object.freeze([
-    { name: "Velociraptor", slug: "velociraptor", type: "Dinosaur", rarity: "Uncommon", attack: 48, power: 44, tagline: "Temple stalker", description: "Small, fast, and ferocious — a clever pack hunter that strikes like lightning." },
-    { name: "King Cobra", slug: "king-cobra", type: "Dangerous Animal", rarity: "Common", attack: 42, power: 37, tagline: "Venom strike", description: "Hood flared and fangs ready, this jungle predator is pure menace." },
-    { name: "Komodo Dragon", slug: "komodo-dragon", type: "Dangerous Animal", rarity: "Uncommon", attack: 51, power: 56, tagline: "Island terror", description: "Heavy, ancient, and relentless — a real-life dragon from volcanic shores." },
-    { name: "Dilophosaurus", slug: "dilophosaurus", type: "Dinosaur", rarity: "Uncommon", attack: 45, power: 43, tagline: "Frill of fear", description: "A dramatic forest ambusher with a snarling face and a fan-like frill." },
-    { name: "Giant Scorpion", slug: "giant-scorpion", type: "Prehistoric Beast", rarity: "Rare", attack: 58, power: 49, tagline: "Desert stinger", description: "An armoured nightmare from the sands, with crushing claws and a deadly tail." },
-    { name: "Dire Wolf", slug: "dire-wolf", type: "Prehistoric Beast", rarity: "Uncommon", attack: 47, power: 50, tagline: "Moon howler", description: "A savage ice-age hunter with glowing eyes and a pack leader's fury." },
-    { name: "Piranha Swarm", slug: "piranha-swarm", type: "Dangerous Animal", rarity: "Common", attack: 39, power: 34, tagline: "River frenzy", description: "Tiny fish, huge terror — a flashing red wave of teeth and panic." },
-    { name: "Basilisk", slug: "basilisk", type: "Mythic Monster", rarity: "Epic", attack: 63, power: 68, tagline: "Gaze of doom", description: "A legendary serpent-monster from ruined temples and ancient fear." },
-    { name: "Carnotaurus", slug: "carnotaurus", type: "Dinosaur", rarity: "Rare", attack: 61, power: 57, tagline: "Horned charger", description: "Fast, horned, and vicious — a storming predator built for chaos." },
-    { name: "Giant Squid", slug: "giant-squid", type: "Sea Beast", rarity: "Rare", attack: 60, power: 62, tagline: "Abyss grabber", description: "A deep-sea terror with huge eyes and tentacles from the dark." },
-    { name: "Allosaurus", slug: "allosaurus", type: "Dinosaur", rarity: "Rare", attack: 66, power: 61, tagline: "Jurassic ripper", description: "A muscular killer from the Jurassic, roaring across a rocky wasteland." },
-    { name: "Smilodon", slug: "smilodon", type: "Prehistoric Beast", rarity: "Rare", attack: 59, power: 55, tagline: "Sabre ambush", description: "A sabre-toothed hunter exploding through snow with giant fangs first." },
-    { name: "Saltwater Crocodile", slug: "saltwater-crocodile", type: "Dangerous Animal", rarity: "Rare", attack: 64, power: 60, tagline: "River ambusher", description: "Silent, ancient, and brutal — the king of muddy waters." },
-    { name: "Manticore", slug: "manticore", type: "Mythic Monster", rarity: "Epic", attack: 71, power: 73, tagline: "Tail of ruin", description: "A fire-lit beast with lion claws, bat wings, and pure monster energy." },
-    { name: "Baryonyx", slug: "baryonyx", type: "Dinosaur", rarity: "Rare", attack: 65, power: 63, tagline: "Marsh reaper", description: "A hooked-claw predator charging through swamp water on the hunt." },
-    { name: "Great White Shark", slug: "great-white-shark", type: "Dangerous Animal", rarity: "Rare", attack: 68, power: 64, tagline: "Jaws of the deep", description: "The classic ocean nightmare, bursting upward with rows of teeth." },
-    { name: "Terror Bird", slug: "terror-bird", type: "Prehistoric Beast", rarity: "Rare", attack: 62, power: 58, tagline: "Skyless slayer", description: "It cannot fly, but it can sprint down prey with a savage beak." },
-    { name: "Minotaur", slug: "minotaur", type: "Mythic Monster", rarity: "Epic", attack: 74, power: 76, tagline: "Labyrinth crusher", description: "A towering bull-headed brute charging through torch-lit ruins." },
-    { name: "Therizinosaurus", slug: "therizinosaurus", type: "Dinosaur", rarity: "Epic", attack: 72, power: 70, tagline: "Claw hurricane", description: "A bizarre giant with absurd scythe-like claws and a very bad attitude." },
-    { name: "Anaconda", slug: "anaconda", type: "Dangerous Animal", rarity: "Uncommon", attack: 54, power: 58, tagline: "Jungle constrictor", description: "A thick, crushing snake coiled deep in the rainforest." },
-    { name: "Quetzalcoatlus", slug: "quetzalcoatlus", type: "Flying Beast", rarity: "Epic", attack: 67, power: 78, tagline: "Sky titan", description: "A giant pterosaur gliding above ruined cliffs and storm clouds." },
-    { name: "Polar Bear", slug: "polar-bear", type: "Dangerous Animal", rarity: "Rare", attack: 61, power: 67, tagline: "Icebreaker", description: "A hulking white predator that owns the frozen edge of the world." },
-    { name: "Cerberus", slug: "cerberus", type: "Mythic Monster", rarity: "Epic", attack: 79, power: 80, tagline: "Triple-fanged guard", description: "Three snarling heads and not a hint of mercy." },
-    { name: "Spinosaurus", slug: "spinosaurus", type: "Dinosaur", rarity: "Epic", attack: 80, power: 82, tagline: "Marsh titan", description: "A sail-backed river monster thundering through storm-soaked wetlands." },
-    { name: "Orca", slug: "orca", type: "Dangerous Animal", rarity: "Epic", attack: 66, power: 74, tagline: "Blackwater strategist", description: "Beautiful, clever, and terrifying — a hunter that rules cold seas." },
-    { name: "Titanoboa", slug: "titanoboa", type: "Prehistoric Beast", rarity: "Epic", attack: 77, power: 81, tagline: "Swamp colossus", description: "A prehistoric snake so huge it feels like the jungle itself is moving." },
-    { name: "Chimera", slug: "chimera", type: "Mythic Monster", rarity: "Legendary", attack: 82, power: 84, tagline: "Three-beast nightmare", description: "A fire-breathing mash-up of monsters with zero interest in fairness." },
-    { name: "Tyrannosaurus Rex", slug: "tyrannosaurus-rex", type: "Dinosaur", rarity: "Legendary", attack: 88, power: 87, tagline: "King of teeth", description: "The classic boss monster — thunderous steps, huge jaws, endless roar." },
-    { name: "Sarcosuchus", slug: "sarcosuchus", type: "Prehistoric Beast", rarity: "Legendary", attack: 84, power: 83, tagline: "Super-croc", description: "A gigantic prehistoric crocodile crashing through ruined riverbanks." },
-    { name: "Kraken", slug: "kraken", type: "Sea Monster", rarity: "Legendary", attack: 86, power: 88, tagline: "Deep-sea boss", description: "Tentacles rise around a doomed ship as the sea turns into chaos." },
-    { name: "Ankylosaurus", slug: "ankylosaurus", type: "Dinosaur", rarity: "Epic", attack: 69, power: 79, tagline: "Club-tail tank", description: "A walking fortress packed with armour and a wrecking-ball tail." },
-    { name: "Griffin", slug: "griffin", type: "Mythic Beast", rarity: "Legendary", attack: 78, power: 82, tagline: "Sky guardian", description: "An eagle-lion hybrid swooping over a golden ruined kingdom." },
-    { name: "Giganotosaurus", slug: "giganotosaurus", type: "Dinosaur", rarity: "Legendary", attack: 90, power: 89, tagline: "Titan slayer", description: "A colossal apex predator roaring under a blood-red storm." },
-    { name: "Megalodon", slug: "megalodon", type: "Sea Beast", rarity: "Legendary", attack: 89, power: 90, tagline: "Mega bite", description: "An absurdly huge shark launching out of a storm-tossed sea." },
-    { name: "Hydra", slug: "hydra", type: "Mythic Monster", rarity: "Legendary", attack: 87, power: 92, tagline: "Heads of havoc", description: "A many-headed swamp terror that only gets worse the more you fight it." },
-    { name: "Mosasaurus", slug: "mosasaurus", type: "Sea Beast", rarity: "Legendary", attack: 91, power: 93, tagline: "Ocean devourer", description: "A giant marine predator bursting from the surf with jaws wide open." },
-    { name: "Yeti", slug: "yeti", type: "Monster", rarity: "Epic", attack: 73, power: 77, tagline: "Mountain phantom", description: "A hulking beast of ice and rage charging through an avalanche." },
-    { name: "Triceratops", slug: "triceratops", type: "Dinosaur", rarity: "Epic", attack: 71, power: 81, tagline: "Horned guardian", description: "A massive three-horned powerhouse built to charge and smash." },
-    { name: "Sea Serpent", slug: "sea-serpent", type: "Sea Monster", rarity: "Legendary", attack: 85, power: 86, tagline: "Storm coil", description: "A legendary serpent twisting through black waves and lightning." },
-    { name: "Dragon", slug: "dragon", type: "Mythic Monster", rarity: "Mythic", attack: 95, power: 96, tagline: "Firestorm lord", description: "Wings wide, jaws blazing — the ultimate fire-breathing nightmare." },
-    { name: "Indominus Rex", slug: "indominus-rex", type: "Hybrid Boss", rarity: "Mythic", attack: 99, power: 99, tagline: "Final boss hybrid", description: "The biggest, baddest fictional predator in the whole deck." }
-  ].map((template) => ({
-    ...template,
-    art: `src/card-art/${template.slug}.webp`
-  })));
+    {
+        "name": "Velociraptor",
+        "slug": "velociraptor",
+        "type": "Dinosaur",
+        "rarity": "Uncommon",
+        "attack": 48,
+        "power": 44,
+        "tagline": "Temple stalker",
+        "description": "Small, fast, and ferocious — a clever pack hunter that strikes like lightning.",
+        "art": "src/card-art/velociraptor.webp"
+    },
+    {
+        "name": "King Cobra",
+        "slug": "king-cobra",
+        "type": "Dangerous Animal",
+        "rarity": "Common",
+        "attack": 42,
+        "power": 37,
+        "tagline": "Venom strike",
+        "description": "Hood flared and fangs ready, this jungle predator is pure menace.",
+        "art": "src/card-art/king-cobra.webp"
+    },
+    {
+        "name": "Komodo Dragon",
+        "slug": "komodo-dragon",
+        "type": "Dangerous Animal",
+        "rarity": "Uncommon",
+        "attack": 51,
+        "power": 56,
+        "tagline": "Island terror",
+        "description": "Heavy, ancient, and relentless — a real-life dragon from volcanic shores.",
+        "art": "src/card-art/komodo-dragon.webp"
+    },
+    {
+        "name": "Dilophosaurus",
+        "slug": "dilophosaurus",
+        "type": "Dinosaur",
+        "rarity": "Uncommon",
+        "attack": 45,
+        "power": 43,
+        "tagline": "Frill of fear",
+        "description": "A dramatic forest ambusher with a snarling face and a fan-like frill.",
+        "art": "src/card-art/dilophosaurus.webp"
+    },
+    {
+        "name": "Giant Scorpion",
+        "slug": "giant-scorpion",
+        "type": "Prehistoric Beast",
+        "rarity": "Rare",
+        "attack": 58,
+        "power": 49,
+        "tagline": "Desert stinger",
+        "description": "An armoured nightmare from the sands, with crushing claws and a deadly tail.",
+        "art": "src/card-art/giant-scorpion.webp"
+    },
+    {
+        "name": "Dire Wolf",
+        "slug": "dire-wolf",
+        "type": "Prehistoric Beast",
+        "rarity": "Uncommon",
+        "attack": 47,
+        "power": 50,
+        "tagline": "Moon howler",
+        "description": "A savage ice-age hunter with glowing eyes and a pack leader's fury.",
+        "art": "src/card-art/dire-wolf.webp"
+    },
+    {
+        "name": "Piranha Swarm",
+        "slug": "piranha-swarm",
+        "type": "Dangerous Animal",
+        "rarity": "Common",
+        "attack": 39,
+        "power": 34,
+        "tagline": "River frenzy",
+        "description": "Tiny fish, huge terror — a flashing red wave of teeth and panic.",
+        "art": "src/card-art/piranha-swarm.webp"
+    },
+    {
+        "name": "Basilisk",
+        "slug": "basilisk",
+        "type": "Mythic Monster",
+        "rarity": "Epic",
+        "attack": 63,
+        "power": 68,
+        "tagline": "Gaze of doom",
+        "description": "A legendary serpent-monster from ruined temples and ancient fear.",
+        "art": "src/card-art/basilisk.webp"
+    },
+    {
+        "name": "Carnotaurus",
+        "slug": "carnotaurus",
+        "type": "Dinosaur",
+        "rarity": "Rare",
+        "attack": 61,
+        "power": 57,
+        "tagline": "Horned charger",
+        "description": "Fast, horned, and vicious — a storming predator built for chaos.",
+        "art": "src/card-art/carnotaurus.webp"
+    },
+    {
+        "name": "Giant Squid",
+        "slug": "giant-squid",
+        "type": "Sea Beast",
+        "rarity": "Rare",
+        "attack": 60,
+        "power": 62,
+        "tagline": "Abyss grabber",
+        "description": "A deep-sea terror with huge eyes and tentacles from the dark.",
+        "art": "src/card-art/giant-squid.webp"
+    },
+    {
+        "name": "Allosaurus",
+        "slug": "allosaurus",
+        "type": "Dinosaur",
+        "rarity": "Rare",
+        "attack": 66,
+        "power": 61,
+        "tagline": "Jurassic ripper",
+        "description": "A muscular killer from the Jurassic, roaring across a rocky wasteland.",
+        "art": "src/card-art/allosaurus.webp"
+    },
+    {
+        "name": "Smilodon",
+        "slug": "smilodon",
+        "type": "Prehistoric Beast",
+        "rarity": "Rare",
+        "attack": 59,
+        "power": 55,
+        "tagline": "Sabre ambush",
+        "description": "A sabre-toothed hunter exploding through snow with giant fangs first.",
+        "art": "src/card-art/smilodon.webp"
+    },
+    {
+        "name": "Saltwater Crocodile",
+        "slug": "saltwater-crocodile",
+        "type": "Dangerous Animal",
+        "rarity": "Rare",
+        "attack": 64,
+        "power": 60,
+        "tagline": "River ambusher",
+        "description": "Silent, ancient, and brutal — the king of muddy waters.",
+        "art": "src/card-art/saltwater-crocodile.webp"
+    },
+    {
+        "name": "Manticore",
+        "slug": "manticore",
+        "type": "Mythic Monster",
+        "rarity": "Epic",
+        "attack": 71,
+        "power": 73,
+        "tagline": "Tail of ruin",
+        "description": "A fire-lit beast with lion claws, bat wings, and pure monster energy.",
+        "art": "src/card-art/manticore.webp"
+    },
+    {
+        "name": "Baryonyx",
+        "slug": "baryonyx",
+        "type": "Dinosaur",
+        "rarity": "Rare",
+        "attack": 65,
+        "power": 63,
+        "tagline": "Marsh reaper",
+        "description": "A hooked-claw predator charging through swamp water on the hunt.",
+        "art": "src/card-art/baryonyx.webp"
+    },
+    {
+        "name": "Great White Shark",
+        "slug": "great-white-shark",
+        "type": "Dangerous Animal",
+        "rarity": "Rare",
+        "attack": 68,
+        "power": 64,
+        "tagline": "Jaws of the deep",
+        "description": "The classic ocean nightmare, bursting upward with rows of teeth.",
+        "art": "src/card-art/great-white-shark.webp"
+    },
+    {
+        "name": "Terror Bird",
+        "slug": "terror-bird",
+        "type": "Prehistoric Beast",
+        "rarity": "Rare",
+        "attack": 62,
+        "power": 58,
+        "tagline": "Skyless slayer",
+        "description": "It cannot fly, but it can sprint down prey with a savage beak.",
+        "art": "src/card-art/terror-bird.webp"
+    },
+    {
+        "name": "Minotaur",
+        "slug": "minotaur",
+        "type": "Mythic Monster",
+        "rarity": "Epic",
+        "attack": 74,
+        "power": 76,
+        "tagline": "Labyrinth crusher",
+        "description": "A towering bull-headed brute charging through torch-lit ruins.",
+        "art": "src/card-art/minotaur.webp"
+    },
+    {
+        "name": "Therizinosaurus",
+        "slug": "therizinosaurus",
+        "type": "Dinosaur",
+        "rarity": "Epic",
+        "attack": 72,
+        "power": 70,
+        "tagline": "Claw hurricane",
+        "description": "A bizarre giant with absurd scythe-like claws and a very bad attitude.",
+        "art": "src/card-art/therizinosaurus.webp"
+    },
+    {
+        "name": "Anaconda",
+        "slug": "anaconda",
+        "type": "Dangerous Animal",
+        "rarity": "Uncommon",
+        "attack": 54,
+        "power": 58,
+        "tagline": "Jungle constrictor",
+        "description": "A thick, crushing snake coiled deep in the rainforest.",
+        "art": "src/card-art/anaconda.webp"
+    },
+    {
+        "name": "Quetzalcoatlus",
+        "slug": "quetzalcoatlus",
+        "type": "Flying Beast",
+        "rarity": "Epic",
+        "attack": 67,
+        "power": 78,
+        "tagline": "Sky titan",
+        "description": "A giant pterosaur gliding above ruined cliffs and storm clouds.",
+        "art": "src/card-art/quetzalcoatlus.webp"
+    },
+    {
+        "name": "Polar Bear",
+        "slug": "polar-bear",
+        "type": "Dangerous Animal",
+        "rarity": "Rare",
+        "attack": 61,
+        "power": 67,
+        "tagline": "Icebreaker",
+        "description": "A hulking white predator that owns the frozen edge of the world.",
+        "art": "src/card-art/polar-bear.webp"
+    },
+    {
+        "name": "Cerberus",
+        "slug": "cerberus",
+        "type": "Mythic Monster",
+        "rarity": "Epic",
+        "attack": 79,
+        "power": 80,
+        "tagline": "Triple-fanged guard",
+        "description": "Three snarling heads and not a hint of mercy.",
+        "art": "src/card-art/cerberus.webp"
+    },
+    {
+        "name": "Spinosaurus",
+        "slug": "spinosaurus",
+        "type": "Dinosaur",
+        "rarity": "Epic",
+        "attack": 80,
+        "power": 82,
+        "tagline": "Marsh titan",
+        "description": "A sail-backed river monster thundering through storm-soaked wetlands.",
+        "art": "src/card-art/spinosaurus.webp"
+    },
+    {
+        "name": "Orca",
+        "slug": "orca",
+        "type": "Dangerous Animal",
+        "rarity": "Epic",
+        "attack": 66,
+        "power": 74,
+        "tagline": "Blackwater strategist",
+        "description": "Beautiful, clever, and terrifying — a hunter that rules cold seas.",
+        "art": "src/card-art/orca.webp"
+    },
+    {
+        "name": "Titanoboa",
+        "slug": "titanoboa",
+        "type": "Prehistoric Beast",
+        "rarity": "Epic",
+        "attack": 77,
+        "power": 81,
+        "tagline": "Swamp colossus",
+        "description": "A prehistoric snake so huge it feels like the jungle itself is moving.",
+        "art": "src/card-art/titanoboa.webp"
+    },
+    {
+        "name": "Chimera",
+        "slug": "chimera",
+        "type": "Mythic Monster",
+        "rarity": "Legendary",
+        "attack": 82,
+        "power": 84,
+        "tagline": "Three-beast nightmare",
+        "description": "A fire-breathing mash-up of monsters with zero interest in fairness.",
+        "art": "src/card-art/chimera.webp"
+    },
+    {
+        "name": "Tyrannosaurus Rex",
+        "slug": "tyrannosaurus-rex",
+        "type": "Dinosaur",
+        "rarity": "Legendary",
+        "attack": 88,
+        "power": 87,
+        "tagline": "King of teeth",
+        "description": "The classic boss monster — thunderous steps, huge jaws, endless roar.",
+        "art": "src/card-art/tyrannosaurus-rex.webp"
+    },
+    {
+        "name": "Sarcosuchus",
+        "slug": "sarcosuchus",
+        "type": "Prehistoric Beast",
+        "rarity": "Legendary",
+        "attack": 84,
+        "power": 83,
+        "tagline": "Super-croc",
+        "description": "A gigantic prehistoric crocodile crashing through ruined riverbanks.",
+        "art": "src/card-art/sarcosuchus.webp"
+    },
+    {
+        "name": "Kraken",
+        "slug": "kraken",
+        "type": "Sea Monster",
+        "rarity": "Legendary",
+        "attack": 86,
+        "power": 88,
+        "tagline": "Deep-sea boss",
+        "description": "Tentacles rise around a doomed ship as the sea turns into chaos.",
+        "art": "src/card-art/kraken.webp"
+    },
+    {
+        "name": "Ankylosaurus",
+        "slug": "ankylosaurus",
+        "type": "Dinosaur",
+        "rarity": "Epic",
+        "attack": 69,
+        "power": 79,
+        "tagline": "Club-tail tank",
+        "description": "A walking fortress packed with armour and a wrecking-ball tail.",
+        "art": "src/card-art/ankylosaurus.webp"
+    },
+    {
+        "name": "Griffin",
+        "slug": "griffin",
+        "type": "Mythic Beast",
+        "rarity": "Legendary",
+        "attack": 78,
+        "power": 82,
+        "tagline": "Sky guardian",
+        "description": "An eagle-lion hybrid swooping over a golden ruined kingdom.",
+        "art": "src/card-art/griffin.webp"
+    },
+    {
+        "name": "Giganotosaurus",
+        "slug": "giganotosaurus",
+        "type": "Dinosaur",
+        "rarity": "Legendary",
+        "attack": 90,
+        "power": 89,
+        "tagline": "Titan slayer",
+        "description": "A colossal apex predator roaring under a blood-red storm.",
+        "art": "src/card-art/giganotosaurus.webp"
+    },
+    {
+        "name": "Megalodon",
+        "slug": "megalodon",
+        "type": "Sea Beast",
+        "rarity": "Legendary",
+        "attack": 89,
+        "power": 90,
+        "tagline": "Mega bite",
+        "description": "An absurdly huge shark launching out of a storm-tossed sea.",
+        "art": "src/card-art/megalodon.webp"
+    },
+    {
+        "name": "Hydra",
+        "slug": "hydra",
+        "type": "Mythic Monster",
+        "rarity": "Legendary",
+        "attack": 87,
+        "power": 92,
+        "tagline": "Heads of havoc",
+        "description": "A many-headed swamp terror that only gets worse the more you fight it.",
+        "art": "src/card-art/hydra.webp"
+    },
+    {
+        "name": "Mosasaurus",
+        "slug": "mosasaurus",
+        "type": "Sea Beast",
+        "rarity": "Legendary",
+        "attack": 91,
+        "power": 93,
+        "tagline": "Ocean devourer",
+        "description": "A giant marine predator bursting from the surf with jaws wide open.",
+        "art": "src/card-art/mosasaurus.webp"
+    },
+    {
+        "name": "Yeti",
+        "slug": "yeti",
+        "type": "Monster",
+        "rarity": "Epic",
+        "attack": 73,
+        "power": 77,
+        "tagline": "Mountain phantom",
+        "description": "A hulking beast of ice and rage charging through an avalanche.",
+        "art": "src/card-art/yeti.webp"
+    },
+    {
+        "name": "Triceratops",
+        "slug": "triceratops",
+        "type": "Dinosaur",
+        "rarity": "Epic",
+        "attack": 71,
+        "power": 81,
+        "tagline": "Horned guardian",
+        "description": "A massive three-horned powerhouse built to charge and smash.",
+        "art": "src/card-art/triceratops.webp"
+    },
+    {
+        "name": "Sea Serpent",
+        "slug": "sea-serpent",
+        "type": "Sea Monster",
+        "rarity": "Legendary",
+        "attack": 85,
+        "power": 86,
+        "tagline": "Storm coil",
+        "description": "A legendary serpent twisting through black waves and lightning.",
+        "art": "src/card-art/sea-serpent.webp"
+    },
+    {
+        "name": "Dragon",
+        "slug": "dragon",
+        "type": "Mythic Monster",
+        "rarity": "Mythic",
+        "attack": 95,
+        "power": 96,
+        "tagline": "Firestorm lord",
+        "description": "Wings wide, jaws blazing — the ultimate fire-breathing nightmare.",
+        "art": "src/card-art/dragon.webp"
+    },
+    {
+        "name": "Indominus Rex",
+        "slug": "indominus-rex",
+        "type": "Hybrid Boss",
+        "rarity": "Mythic",
+        "attack": 99,
+        "power": 99,
+        "tagline": "Final boss hybrid",
+        "description": "The biggest, baddest fictional predator in the whole deck.",
+        "art": "src/card-art/indominus-rex.webp"
+    }
+]);
 
   const CONTEXT_CLUES = Object.freeze({
     there: "Clue: The toy is over ___.",
@@ -106,6 +515,8 @@
     hintButton: document.querySelector("#hintButton"),
     skipButton: document.querySelector("#skipButton"),
     hintText: document.querySelector("#hintText"),
+    voiceControl: document.querySelector("#voiceControl"),
+    voiceSelect: document.querySelector("#voiceSelect"),
     form: document.querySelector("#spellForm"),
     answerInput: document.querySelector("#answerInput"),
     feedback: document.querySelector("#feedback"),
@@ -128,6 +539,8 @@
   let state = loadState();
   let currentWord = null;
   let autoAdvanceTimer = null;
+  let availableVoices = [];
+  let lastPurchasedIndex = null;
 
   initialise();
 
@@ -140,6 +553,7 @@
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
 
+    setupVoicePicker();
     selectNextWord();
     renderStats();
     renderShop();
@@ -162,7 +576,7 @@
 
   function makeInitialState() {
     const initialState = {
-      version: 6,
+      version: 7,
       points: 0,
       lifetimePoints: 0,
       ownedCards: [],
@@ -181,7 +595,9 @@
   function loadState() {
     const fallback = makeInitialState();
     const currentRaw = window.localStorage.getItem(STORAGE_KEY);
-    const legacyRaw = LEGACY_STORAGE_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean);
+    const legacyRaw = LEGACY_STORAGE_KEYS
+      .map((key) => window.localStorage.getItem(key))
+      .find((value) => Boolean(value));
     const raw = currentRaw || legacyRaw;
 
     if (!raw) {
@@ -191,7 +607,7 @@
     try {
       const parsed = JSON.parse(raw);
       const loaded = {
-        version: 6,
+        version: 7,
         points: Number.isFinite(parsed.points) ? Math.max(0, parsed.points) : 0,
         lifetimePoints: Number.isFinite(parsed.lifetimePoints) ? Math.max(0, parsed.lifetimePoints) : 0,
         ownedCards: Array.isArray(parsed.ownedCards) ? parsed.ownedCards : [],
@@ -201,11 +617,11 @@
       };
 
       const allowedWords = new Set(WORDS);
-      Object.keys(loaded.progress).forEach((word) => {
+      for (const word of Object.keys(loaded.progress)) {
         if (!allowedWords.has(word)) {
           delete loaded.progress[word];
         }
-      });
+      }
 
       WORDS.forEach((word, index) => {
         const savedProgress = loaded.progress[word] || {};
@@ -213,14 +629,41 @@
           ...makeBlankProgress(word),
           ...savedProgress,
           word,
-          introduced: Boolean(savedProgress.introduced || savedProgress.mastered || Number(savedProgress.attempts || 0) > 0 || index < ACTIVE_WORD_TARGET),
+          introduced: Boolean(
+            savedProgress.introduced ||
+            savedProgress.mastered ||
+            Number(savedProgress.attempts || 0) > 0 ||
+            index < ACTIVE_WORD_TARGET
+          ),
           mastered: Boolean(savedProgress.mastered)
         };
       });
 
-      loaded.ownedCards = sanitiseOwnedCards(loaded.ownedCards);
-      loaded.lifetimePoints = Math.max(loaded.lifetimePoints, calculateEarnedPoints(loaded));
+      if (!Array.isArray(parsed.ownedCards) && Array.isArray(parsed.cards)) {
+        const earnedPoints = calculateEarnedPoints(loaded) || Number(parsed.points) || 0;
+        const safeLegacyCards = clamp(parsed.cards.length, 0, CREATURE_CARD_TEMPLATES.length);
+        loaded.ownedCards = Array.from({ length: safeLegacyCards }, (_, index) => ({
+          index,
+          purchasedAt: Date.now() + index
+        }));
+        loaded.lifetimePoints = earnedPoints;
+        loaded.points = Math.max(0, earnedPoints - safeLegacyCards * CARD_COST);
+      } else {
+        loaded.ownedCards = sanitiseOwnedCards(loaded.ownedCards);
+        loaded.lifetimePoints = Math.max(loaded.lifetimePoints, calculateEarnedPoints(loaded));
+      }
+
       cleanQueue(loaded);
+
+      if (loaded.queue.length === 0) {
+        for (const word of WORDS) {
+          const progress = loaded.progress[word];
+          if (progress.introduced && !progress.mastered) {
+            loaded.queue.push(word);
+          }
+        }
+      }
+
       fillQueueToSize(loaded, ACTIVE_WORD_TARGET);
       return loaded;
     } catch (error) {
@@ -240,6 +683,7 @@
 
     state = makeInitialState();
     currentWord = null;
+    lastPurchasedIndex = null;
     clearAutoAdvance();
     clearFeedback();
     clearShopFlash();
@@ -293,7 +737,10 @@
   }
 
   function skipCurrentWord() {
-    if (!currentWord) return;
+    if (!currentWord) {
+      return;
+    }
+
     removeWordFromQueue(currentWord);
     insertWordAfterGap(currentWord, WRONG_REVIEW_GAP);
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
@@ -305,7 +752,10 @@
     const seen = new Set();
     targetState.queue = targetState.queue.filter((word) => {
       const progress = targetState.progress[word];
-      if (!progress || progress.mastered || seen.has(word)) return false;
+      if (!progress || progress.mastered || seen.has(word)) {
+        return false;
+      }
+
       seen.add(word);
       progress.introduced = true;
       return true;
@@ -316,7 +766,9 @@
     cleanQueue(targetState);
     while (targetState.queue.length < targetSize) {
       const introducedWord = introduceNextWord(targetState);
-      if (!introducedWord) break;
+      if (!introducedWord) {
+        break;
+      }
       targetState.queue.push(introducedWord);
     }
   }
@@ -324,7 +776,10 @@
   function introduceNextWord(targetState) {
     for (const word of WORDS) {
       const progress = targetState.progress[word];
-      if (!progress || progress.mastered || progress.introduced) continue;
+      if (!progress || progress.mastered || progress.introduced) {
+        continue;
+      }
+
       progress.introduced = true;
       return word;
     }
@@ -333,7 +788,9 @@
 
   function removeWordFromQueue(word) {
     const index = state.queue.indexOf(word);
-    if (index >= 0) state.queue.splice(index, 1);
+    if (index >= 0) {
+      state.queue.splice(index, 1);
+    }
   }
 
   function insertWordAfterGap(word, wordGap) {
@@ -345,7 +802,9 @@
 
   function handleSubmit(event) {
     event.preventDefault();
-    if (!currentWord) return;
+    if (!currentWord) {
+      return;
+    }
 
     const answer = normaliseAnswer(elements.answerInput.value);
     const progress = state.progress[currentWord];
@@ -446,37 +905,32 @@
       const article = node.querySelector(".monster-card");
       const button = node.querySelector("button");
 
-      if (released) {
-        populateCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`);
+      if (released && owned) {
+        populateRevealedCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`);
+        article.classList.add("is-owned");
+        if (index === lastPurchasedIndex) {
+          article.classList.add("is-flipping");
+          window.setTimeout(() => {
+            lastPurchasedIndex = null;
+          }, 950);
+        }
+        button.textContent = "Owned";
+        button.disabled = true;
+      } else if (released) {
+        populateMysteryCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`);
+        article.classList.add("is-mystery");
         button.dataset.cardIndex = String(index);
-
-        if (owned) {
-          article.classList.add("is-owned");
-          button.textContent = "Owned";
-          button.disabled = true;
-        } else if (!affordable) {
-          article.classList.add("is-unaffordable");
-          button.textContent = `Need ${CARD_COST}`;
-          button.disabled = true;
-        } else {
+        if (affordable) {
           button.textContent = `Buy for ${CARD_COST}`;
           button.disabled = false;
+        } else {
+          button.textContent = `Need ${CARD_COST}`;
+          button.disabled = true;
+          article.classList.add("is-unaffordable");
         }
       } else {
+        populateLockedCardNode(node);
         article.classList.add("is-locked");
-        article.querySelector(".monster-card__image").removeAttribute("src");
-        article.querySelector(".monster-card__image").alt = "";
-        article.querySelector(".monster-card__art-badge").textContent = "Locked";
-        article.querySelector(".monster-card__tagline").textContent = "Future creature";
-        article.querySelector(".monster-card__type").textContent = "Locked";
-        article.querySelector(".monster-card__rarity-pill").textContent = "???";
-        article.querySelector(".monster-card__title").textContent = "???";
-        article.querySelector(".monster-card__description").textContent = "Buy more cards to reveal the next wave of terrifying creatures.";
-        article.querySelector(".monster-card__attack").textContent = "—";
-        article.querySelector(".monster-card__power").textContent = "—";
-        article.querySelector(".monster-card__rarity-short").textContent = "—";
-        article.querySelector(".monster-card__meta").textContent = "Locked";
-        article.querySelector(".monster-card__cost").textContent = "—";
         button.textContent = "Locked";
         button.disabled = true;
       }
@@ -500,16 +954,19 @@
     const latestTemplate = CREATURE_CARD_TEMPLATES[state.ownedCards[state.ownedCards.length - 1].index];
     elements.collectionBadge.textContent = `Latest: ${latestTemplate.name}`;
 
-    state.ownedCards.slice().sort((a, b) => b.purchasedAt - a.purchasedAt).forEach((ownedCard) => {
-      const template = CREATURE_CARD_TEMPLATES[ownedCard.index];
-      const node = elements.collectionCardTemplate.content.cloneNode(true);
-      populateCardNode(node, template, `Owned · Card ${ownedCard.index + 1}`);
-      node.querySelector(".monster-card__cost").textContent = "Owned";
-      elements.collectionGrid.appendChild(node);
-    });
+    state.ownedCards
+      .slice()
+      .sort((a, b) => b.purchasedAt - a.purchasedAt)
+      .forEach((ownedCard) => {
+        const template = CREATURE_CARD_TEMPLATES[ownedCard.index];
+        const node = elements.collectionCardTemplate.content.cloneNode(true);
+        populateRevealedCardNode(node, template, `Owned · Card ${ownedCard.index + 1}`);
+        node.querySelector(".monster-card__cost").textContent = "Owned";
+        elements.collectionGrid.appendChild(node);
+      });
   }
 
-  function populateCardNode(node, template, metaText) {
+  function populateRevealedCardNode(node, template, metaText) {
     const image = node.querySelector(".monster-card__image");
     image.src = template.art;
     image.alt = `${template.name} card artwork`;
@@ -528,9 +985,48 @@
     node.querySelector(".monster-card__cost").textContent = `${CARD_COST} pts`;
   }
 
+  function populateMysteryCardNode(node, template, metaText) {
+    const image = node.querySelector(".monster-card__image");
+    image.removeAttribute("src");
+    image.alt = "";
+
+    node.querySelector(".monster-card__art-badge").textContent = "?";
+    node.querySelector(".monster-card__tagline").textContent = "Mystery card";
+    node.querySelector(".monster-card__type").textContent = "Hidden";
+    node.querySelector(".monster-card__rarity-pill").textContent = "???";
+    node.querySelector(".monster-card__title").textContent = template.name;
+    node.querySelector(".monster-card__description").textContent = "Buy this card to flip it over and reveal the artwork, rarity, ATK, and PWR.";
+    node.querySelector(".monster-card__attack").textContent = "?";
+    node.querySelector(".monster-card__power").textContent = "?";
+    node.querySelector(".monster-card__rarity-short").textContent = "?";
+    node.querySelector(".monster-card__meta").textContent = metaText;
+    node.querySelector(".monster-card__cost").textContent = `${CARD_COST} pts`;
+  }
+
+  function populateLockedCardNode(node) {
+    const image = node.querySelector(".monster-card__image");
+    image.removeAttribute("src");
+    image.alt = "";
+
+    node.querySelector(".monster-card__art-badge").textContent = "Locked";
+    node.querySelector(".monster-card__tagline").textContent = "Future creature";
+    node.querySelector(".monster-card__type").textContent = "Locked";
+    node.querySelector(".monster-card__rarity-pill").textContent = "???";
+    node.querySelector(".monster-card__title").textContent = "???";
+    node.querySelector(".monster-card__description").textContent = "Buy more cards to reveal the next wave of terrifying creatures.";
+    node.querySelector(".monster-card__attack").textContent = "—";
+    node.querySelector(".monster-card__power").textContent = "—";
+    node.querySelector(".monster-card__rarity-short").textContent = "—";
+    node.querySelector(".monster-card__meta").textContent = "Locked";
+    node.querySelector(".monster-card__cost").textContent = "—";
+  }
+
   function handleShopClick(event) {
     const button = event.target.closest("button[data-card-index]");
-    if (!button) return;
+    if (!button) {
+      return;
+    }
+
     buyCard(Number(button.dataset.cardIndex));
   }
 
@@ -542,10 +1038,12 @@
       setShopFlash("That card is not available yet.", "error");
       return;
     }
+
     if (ownedSet.has(cardIndex)) {
       setShopFlash("You already own that card.", "info");
       return;
     }
+
     if (state.points < CARD_COST) {
       const missing = CARD_COST - state.points;
       setShopFlash(`You need ${missing} more ${pluralise(missing, "point")} to buy that card.`, "error");
@@ -555,6 +1053,7 @@
     const before = availableCount;
     state.points -= CARD_COST;
     state.ownedCards.push({ index: cardIndex, purchasedAt: Date.now() });
+    lastPurchasedIndex = cardIndex;
 
     const after = getAvailableCardCount();
     const unlockedMore = after > before;
@@ -576,7 +1075,9 @@
 
   function getNextShopExpansionTarget() {
     const availableCount = getAvailableCardCount();
-    if (availableCount >= CREATURE_CARD_TEMPLATES.length) return null;
+    if (availableCount >= CREATURE_CARD_TEMPLATES.length) {
+      return null;
+    }
     return availableCount - SHOP_REMAINING_TRIGGER;
   }
 
@@ -585,7 +1086,13 @@
     return cards
       .filter((card) => card && typeof card === "object")
       .map((card) => ({ index: Number(card.index), purchasedAt: Number(card.purchasedAt) || Date.now() }))
-      .filter((card) => Number.isInteger(card.index) && card.index >= 0 && card.index < CREATURE_CARD_TEMPLATES.length && !seen.has(card.index) && seen.add(card.index))
+      .filter((card) => {
+        if (!Number.isInteger(card.index) || card.index < 0 || card.index >= CREATURE_CARD_TEMPLATES.length || seen.has(card.index)) {
+          return false;
+        }
+        seen.add(card.index);
+        return true;
+      })
       .sort((a, b) => a.purchasedAt - b.purchasedAt);
   }
 
@@ -601,28 +1108,122 @@
     }, 0);
   }
 
+  function setupVoicePicker() {
+    if (!("speechSynthesis" in window)) {
+      elements.voiceControl.hidden = true;
+      return;
+    }
+
+    elements.voiceControl.hidden = false;
+    elements.voiceSelect.addEventListener("change", () => {
+      window.localStorage.setItem(VOICE_STORAGE_KEY, elements.voiceSelect.value);
+    });
+
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const englishVoices = voices
+        .filter((voice) => /^en([-_]|$)/i.test(voice.lang || ""))
+        .sort((a, b) => scoreVoice(b) - scoreVoice(a) || a.name.localeCompare(b.name));
+
+      if (englishVoices.length === 0) {
+        elements.voiceSelect.disabled = true;
+        elements.voiceSelect.innerHTML = '<option value="">Browser default voice</option>';
+        return;
+      }
+
+      availableVoices = englishVoices;
+      const savedVoice = window.localStorage.getItem(VOICE_STORAGE_KEY);
+      const selectedVoice = englishVoices.find((voice) => voice.name === savedVoice) || englishVoices[0];
+
+      elements.voiceSelect.innerHTML = "";
+      englishVoices.forEach((voice) => {
+        const option = document.createElement("option");
+        option.value = voice.name;
+        option.textContent = `${voice.name} (${voice.lang})`;
+        elements.voiceSelect.appendChild(option);
+      });
+      elements.voiceSelect.value = selectedVoice.name;
+      elements.voiceSelect.disabled = false;
+    };
+
+    loadVoices();
+    window.setTimeout(loadVoices, 300);
+    window.setTimeout(loadVoices, 1000);
+
+    if (typeof window.speechSynthesis.addEventListener === "function") {
+      window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    } else {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }
+
+  function scoreVoice(voice) {
+    const name = voice.name.toLowerCase();
+    const lang = (voice.lang || "").toLowerCase();
+    let score = 0;
+
+    if (lang.startsWith("en-gb")) score += 9;
+    if (lang.startsWith("en-us")) score += 8;
+    if (lang.startsWith("en-au")) score += 6;
+    if (voice.localService) score += 1;
+    if (name.includes("google")) score += 5;
+    if (name.includes("microsoft")) score += 4;
+    if (["samantha", "alex", "daniel", "serena", "sonia", "karen", "moira", "ava"].some((goodName) => name.includes(goodName))) score += 5;
+    if (["compact", "novelty", "whisper", "bad news", "bells", "boing"].some((badName) => name.includes(badName))) score -= 8;
+
+    return score;
+  }
+
+  function getSelectedVoice() {
+    if (availableVoices.length === 0) {
+      return null;
+    }
+
+    return availableVoices.find((voice) => voice.name === elements.voiceSelect.value) || availableVoices[0];
+  }
+
   function showHint() {
-    if (!currentWord) return;
+    if (!currentWord) {
+      return;
+    }
+
     const progress = state.progress[currentWord];
-    const pattern = currentWord.split("").map((letter, index) => {
-      if (index === 0) return letter;
-      if (progress.correctStreak >= 2 && index === currentWord.length - 1) return letter;
-      return "·";
-    }).join(" ");
+    const pattern = currentWord
+      .split("")
+      .map((letter, index) => {
+        if (index === 0) return letter;
+        if (progress.correctStreak >= 2 && index === currentWord.length - 1) return letter;
+        return "·";
+      })
+      .join(" ");
+
     elements.hintText.textContent = `Hint: starts with “${currentWord.charAt(0)}”. Pattern: ${pattern}`;
   }
 
   function speakCurrentWord() {
-    if (!currentWord) return;
+    if (!currentWord) {
+      return;
+    }
+
     if (!("speechSynthesis" in window)) {
       elements.hintText.textContent = `Speech is not available in this browser. Ask a grown-up to read: ${currentWord}`;
       return;
     }
+
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(currentWord);
-    utterance.lang = "en-GB";
-    utterance.rate = 0.82;
-    utterance.pitch = 1.08;
+
+    const utterance = new SpeechSynthesisUtterance(`${currentWord}. ${currentWord}.`);
+    const selectedVoice = getSelectedVoice();
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang;
+    } else {
+      utterance.lang = "en-GB";
+    }
+
+    utterance.rate = 0.74;
+    utterance.pitch = 0.95;
+    utterance.volume = 1;
     window.speechSynthesis.speak(utterance);
   }
 
@@ -637,7 +1238,14 @@
   }
 
   function shortRarity(rarity) {
-    return ({ Common: "C", Uncommon: "UC", Rare: "R", Epic: "EP", Legendary: "LG", Mythic: "MY" }[rarity] || rarity.slice(0, 2).toUpperCase());
+    return ({
+      Common: "C",
+      Uncommon: "UC",
+      Rare: "R",
+      Epic: "EP",
+      Legendary: "LG",
+      Mythic: "MY"
+    }[rarity] || rarity.slice(0, 2).toUpperCase());
   }
 
   function pluralise(count, singular) {
