@@ -1098,7 +1098,7 @@
   }
 
   function scoreWord(word) {
-    return Math.max(1, word.length - 2);
+    return Math.max(1, word.length - 1);
   }
 
   function calculateEarnedPoints(targetState) {
