@@ -12,7 +12,7 @@
       <div>
         <p class="eyebrow">Spaced-repetition spelling</p>
         <h1>Dino Speller</h1>
-        <p class="lede">Hear a word, spell it, master it, and earn Danger Deck creature cards.</p>
+        <p class="lede">Hear a word, spell it, earn points every time you get it right, then spend those points in the Danger Shop on scary creature cards with real artwork.</p>
       </div>
       <button class="secondary-button" id="resetButton" type="button">Reset progress</button>
     </header>
@@ -63,7 +63,7 @@
         <div class="stats-grid">
           <div>
             <span class="stat-number" id="pointsTotal">0</span>
-            <span class="stat-label">points</span>
+            <span class="stat-label">points to spend</span>
           </div>
           <div>
             <span class="stat-number" id="masteredTotal">0</span>
@@ -71,42 +71,120 @@
           </div>
           <div>
             <span class="stat-number" id="cardsTotal">0</span>
-            <span class="stat-label">cards</span>
+            <span class="stat-label">cards owned</span>
           </div>
           <div>
-            <span class="stat-number" id="wordsTotal">0</span>
-            <span class="stat-label">words</span>
+            <span class="stat-number" id="shopOpenTotal">0</span>
+            <span class="stat-label">shop open</span>
           </div>
         </div>
 
         <div class="progress-block">
           <div class="progress-copy">
-            <span>Next creature card</span>
-            <strong id="nextCardText">0 / 30</strong>
+            <span>Next shop expansion</span>
+            <strong id="nextShopText">0 / 5 owned</strong>
           </div>
           <div class="progress-track" aria-hidden="true">
-            <div class="progress-fill" id="cardProgress"></div>
+            <div class="progress-fill" id="shopProgress"></div>
           </div>
         </div>
 
-        <p class="small-note">Earn points every time a word is spelt correctly. A word is mastered after three correct spellings in a row.</p>
+        <p class="small-note">A 3-letter word gives 1 point, a 4-letter word gives 2 points, and so on. Every card costs 30 points. The shop starts with 10 cards, and 10 more unlock whenever you own all but 5 of the currently available cards.</p>
       </aside>
+
+      <section class="shop-card" aria-labelledby="shopTitle">
+        <div class="game-card__topline">
+          <h2 id="shopTitle">Danger Shop</h2>
+          <span class="pill" id="shopStatusBadge">10 available now</span>
+        </div>
+        <p class="small-note" id="shopMessage">Buy cards to unlock more cards in the shop.</p>
+        <div class="feedback" id="shopFlash" aria-live="polite"></div>
+        <div class="card-grid" id="shopGrid"></div>
+      </section>
 
       <section class="album-card" aria-labelledby="albumTitle">
         <div class="game-card__topline">
-          <h2 id="albumTitle">Danger Deck cards</h2>
-          <span class="pill" id="latestCardBadge">None yet</span>
+          <h2 id="albumTitle">Your collection</h2>
+          <span class="pill" id="collectionBadge">No cards yet</span>
         </div>
-        <div class="card-album" id="cardAlbum"></div>
+        <div class="card-grid" id="collectionGrid"></div>
       </section>
     </main>
 
-    <template id="dinoCardTemplate">
-      <article class="dino-card">
-        <div class="dino-card__icon"></div>
-        <h3></h3>
-        <p></p>
-        <span></span>
+    <template id="shopCardTemplate">
+      <article class="monster-card">
+        <div class="monster-card__art">
+          <img class="monster-card__image" alt="" />
+          <span class="monster-card__art-badge"></span>
+          <span class="monster-card__tagline"></span>
+        </div>
+        <div class="monster-card__body">
+          <div class="monster-card__topline">
+            <span class="monster-card__type"></span>
+            <span class="monster-card__rarity-pill"></span>
+          </div>
+          <h3 class="monster-card__title"></h3>
+          <p class="monster-card__description"></p>
+          <div class="monster-card__stats">
+            <div class="monster-stat">
+              <span>ATK</span>
+              <strong class="monster-card__attack"></strong>
+            </div>
+            <div class="monster-stat">
+              <span>PWR</span>
+              <strong class="monster-card__power"></strong>
+            </div>
+            <div class="monster-stat">
+              <span>RAR</span>
+              <strong class="monster-card__rarity-short"></strong>
+            </div>
+          </div>
+          <div class="monster-card__footer">
+            <div>
+              <span class="monster-card__meta"></span>
+              <span class="monster-card__cost"></span>
+            </div>
+            <button class="primary-button" type="button">Buy</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <template id="collectionCardTemplate">
+      <article class="monster-card monster-card--owned">
+        <div class="monster-card__art">
+          <img class="monster-card__image" alt="" />
+          <span class="monster-card__art-badge"></span>
+          <span class="monster-card__tagline"></span>
+        </div>
+        <div class="monster-card__body">
+          <div class="monster-card__topline">
+            <span class="monster-card__type"></span>
+            <span class="monster-card__rarity-pill"></span>
+          </div>
+          <h3 class="monster-card__title"></h3>
+          <p class="monster-card__description"></p>
+          <div class="monster-card__stats">
+            <div class="monster-stat">
+              <span>ATK</span>
+              <strong class="monster-card__attack"></strong>
+            </div>
+            <div class="monster-stat">
+              <span>PWR</span>
+              <strong class="monster-card__power"></strong>
+            </div>
+            <div class="monster-stat">
+              <span>RAR</span>
+              <strong class="monster-card__rarity-short"></strong>
+            </div>
+          </div>
+          <div class="monster-card__footer monster-card__footer--no-button">
+            <div>
+              <span class="monster-card__meta"></span>
+              <span class="monster-card__cost"></span>
+            </div>
+          </div>
+        </div>
       </article>
     </template>
 
