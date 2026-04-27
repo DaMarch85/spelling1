@@ -9,7 +9,7 @@ for (const word of SPELLING_WORDS) {
   assert.ok(word.length >= 3, `${word} should have at least three letters`);
 }
 
-const scoreForWord = (word) => Math.max(1, word.length - 2);
+const scoreForWord = (word) => Math.max(1, word.length - 1);
 const totalMasteryPoints = SPELLING_WORDS.reduce((sum, word) => sum + scoreForWord(word), 0);
 const perfectPlayPoints = totalMasteryPoints * 3;
 
