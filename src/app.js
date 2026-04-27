@@ -5,6 +5,7 @@
 
   const STORAGE_KEY = "dino-speller-state-v7";
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
+  const DEFAULT_VOICE_NAME = "Google UK English Male";
   const LEGACY_STORAGE_KEYS = [
     "dino-speller-state-v6",
     "dino-speller-state-v5",
@@ -1133,7 +1134,16 @@
 
       availableVoices = englishVoices;
       const savedVoice = window.localStorage.getItem(VOICE_STORAGE_KEY);
-      const selectedVoice = englishVoices.find((voice) => voice.name === savedVoice) || englishVoices[0];
+      const defaultVoice =
+        englishVoices.find((voice) => voice.name === DEFAULT_VOICE_NAME && voice.lang === DEFAULT_VOICE_LANG) ||
+        englishVoices.find((voice) => voice.name === DEFAULT_VOICE_NAME) ||
+        englishVoices.find((voice) => voice.lang === DEFAULT_VOICE_LANG && voice.name.toLowerCase().includes("google")) ||
+        englishVoices.find((voice) => voice.lang === DEFAULT_VOICE_LANG) ||
+        englishVoices[0];
+
+const selectedVoice =
+  englishVoices.find((voice) => voice.name === savedVoice) ||
+  defaultVoice;
 
       elements.voiceSelect.innerHTML = "";
       englishVoices.forEach((voice) => {
