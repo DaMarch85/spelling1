@@ -310,7 +310,13 @@ input:focus {
 }
 
 .feedback.is-error {
-  color: var(--danger);
+  border: 1px solid rgba(243, 107, 107, 0.34);
+  border-radius: 18px;
+  padding: 0.9rem 1rem;
+  background: rgba(243, 107, 107, 0.1);
+  color: #ff9a9a;
+  font-size: clamp(1.2rem, 3.2vw, 1.55rem);
+  line-height: 1.35;
 }
 
 .feedback.is-info {

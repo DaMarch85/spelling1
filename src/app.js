@@ -5,7 +5,6 @@
 
   const STORAGE_KEY = "dino-speller-state-v7";
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
-  const DEFAULT_VOICE_NAME = "Google UK English Male";
   const LEGACY_STORAGE_KEYS = [
     "dino-speller-state-v6",
     "dino-speller-state-v5",
@@ -16,7 +15,8 @@
   ];
 
   const MASTERY_STREAK = 3;
-  const CARD_COST = 30;
+  const CARD_PRICE_STEP = 5;
+  const CARD_PRICE_GROUP_SIZE = 5;
   const INITIAL_SHOP_SIZE = 10;
   const SHOP_BATCH_SIZE = 10;
   const SHOP_REMAINING_TRIGGER = 5;
@@ -25,6 +25,7 @@
   const SECOND_CORRECT_REVIEW_GAP = 8;
   const WRONG_REVIEW_GAP = 2;
   const AUTO_ADVANCE_MS = 1500;
+  const WRONG_AUTO_ADVANCE_MS = 6500;
 
   const CREATURE_CARD_TEMPLATES = Object.freeze([
     {
@@ -648,7 +649,7 @@
           purchasedAt: Date.now() + index
         }));
         loaded.lifetimePoints = earnedPoints;
-        loaded.points = Math.max(0, earnedPoints - safeLegacyCards * CARD_COST);
+        loaded.points = Math.max(0, earnedPoints - calculateOwnedCardCost(safeLegacyCards));
       } else {
         loaded.ownedCards = sanitiseOwnedCards(loaded.ownedCards);
         loaded.lifetimePoints = Math.max(loaded.lifetimePoints, calculateEarnedPoints(loaded));
@@ -814,7 +815,8 @@
     progress.lastAttemptAt = Date.now();
     state.turn += 1;
 
-    if (answer === currentWord) {
+    const wasCorrect = answer === currentWord;
+    if (wasCorrect) {
       handleCorrectAnswer(progress);
     } else {
       handleIncorrectAnswer(progress, answer);
@@ -826,7 +828,7 @@
     renderShop();
     renderCollection();
     lockPracticeControls();
-    autoAdvanceTimer = window.setTimeout(selectNextWord, AUTO_ADVANCE_MS);
+    autoAdvanceTimer = window.setTimeout(selectNextWord, wasCorrect ? AUTO_ADVANCE_MS : WRONG_AUTO_ADVANCE_MS);
   }
 
   function handleCorrectAnswer(progress) {
@@ -901,13 +903,14 @@
     CREATURE_CARD_TEMPLATES.forEach((template, index) => {
       const released = index < availableCount;
       const owned = ownedSet.has(index);
-      const affordable = state.points >= CARD_COST;
+      const cardCost = getCardCost(index);
+      const affordable = state.points >= cardCost;
       const node = elements.shopCardTemplate.content.cloneNode(true);
       const article = node.querySelector(".monster-card");
       const button = node.querySelector("button");
 
       if (released && owned) {
-        populateRevealedCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`);
+        populateRevealedCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`, getCardCost(index));
         article.classList.add("is-owned");
         if (index === lastPurchasedIndex) {
           article.classList.add("is-flipping");
@@ -918,14 +921,14 @@
         button.textContent = "Owned";
         button.disabled = true;
       } else if (released) {
-        populateMysteryCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`);
+        populateMysteryCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`, cardCost);
         article.classList.add("is-mystery");
         button.dataset.cardIndex = String(index);
         if (affordable) {
-          button.textContent = `Buy for ${CARD_COST}`;
+          button.textContent = `Buy for ${cardCost}`;
           button.disabled = false;
         } else {
-          button.textContent = `Need ${CARD_COST}`;
+          button.textContent = `Need ${cardCost}`;
           button.disabled = true;
           article.classList.add("is-unaffordable");
         }
@@ -961,13 +964,13 @@
       .forEach((ownedCard) => {
         const template = CREATURE_CARD_TEMPLATES[ownedCard.index];
         const node = elements.collectionCardTemplate.content.cloneNode(true);
-        populateRevealedCardNode(node, template, `Owned · Card ${ownedCard.index + 1}`);
+        populateRevealedCardNode(node, template, `Owned · Card ${ownedCard.index + 1}`, getCardCost(ownedCard.index));
         node.querySelector(".monster-card__cost").textContent = "Owned";
         elements.collectionGrid.appendChild(node);
       });
   }
 
-  function populateRevealedCardNode(node, template, metaText) {
+  function populateRevealedCardNode(node, template, metaText, cardCost) {
     const image = node.querySelector(".monster-card__image");
     image.src = template.art;
     image.alt = `${template.name} card artwork`;
@@ -983,10 +986,10 @@
     node.querySelector(".monster-card__power").textContent = template.power;
     node.querySelector(".monster-card__rarity-short").textContent = shortRarity(template.rarity);
     node.querySelector(".monster-card__meta").textContent = metaText;
-    node.querySelector(".monster-card__cost").textContent = `${CARD_COST} pts`;
+    node.querySelector(".monster-card__cost").textContent = `${cardCost} pts`;
   }
 
-  function populateMysteryCardNode(node, template, metaText) {
+  function populateMysteryCardNode(node, template, metaText, cardCost) {
     const image = node.querySelector(".monster-card__image");
     image.removeAttribute("src");
     image.alt = "";
@@ -1001,7 +1004,7 @@
     node.querySelector(".monster-card__power").textContent = "?";
     node.querySelector(".monster-card__rarity-short").textContent = "?";
     node.querySelector(".monster-card__meta").textContent = metaText;
-    node.querySelector(".monster-card__cost").textContent = `${CARD_COST} pts`;
+    node.querySelector(".monster-card__cost").textContent = `${cardCost} pts`;
   }
 
   function populateLockedCardNode(node) {
@@ -1045,14 +1048,15 @@
       return;
     }
 
-    if (state.points < CARD_COST) {
-      const missing = CARD_COST - state.points;
+    const cardCost = getCardCost(cardIndex);
+    if (state.points < cardCost) {
+      const missing = cardCost - state.points;
       setShopFlash(`You need ${missing} more ${pluralise(missing, "point")} to buy that card.`, "error");
       return;
     }
 
     const before = availableCount;
-    state.points -= CARD_COST;
+    state.points -= cardCost;
     state.ownedCards.push({ index: cardIndex, purchasedAt: Date.now() });
     lastPurchasedIndex = cardIndex;
 
@@ -1064,7 +1068,19 @@
     renderCollection();
 
     const template = CREATURE_CARD_TEMPLATES[cardIndex];
-    setShopFlash(`Bought ${template.name} for ${CARD_COST} points.${unlockedMore ? " Ten more cards just unlocked!" : ""}`, "success");
+    setShopFlash(`Bought ${template.name} for ${cardCost} ${pluralise(cardCost, "point")}.${unlockedMore ? " Ten more cards just unlocked!" : ""}`, "success");
+  }
+
+  function getCardCost(cardIndex) {
+    return (Math.floor(cardIndex / CARD_PRICE_GROUP_SIZE) + 1) * CARD_PRICE_STEP;
+  }
+
+  function calculateOwnedCardCost(cardCount) {
+    let total = 0;
+    for (let index = 0; index < cardCount; index += 1) {
+      total += getCardCost(index);
+    }
+    return total;
   }
 
   function getAvailableCardCount() {
@@ -1098,7 +1114,7 @@
   }
 
   function scoreWord(word) {
-    return Math.max(1, word.length - 1);
+    return Math.max(1, word.length - 2);
   }
 
   function calculateEarnedPoints(targetState) {
@@ -1134,16 +1150,7 @@
 
       availableVoices = englishVoices;
       const savedVoice = window.localStorage.getItem(VOICE_STORAGE_KEY);
-      const defaultVoice =
-        englishVoices.find((voice) => voice.name === DEFAULT_VOICE_NAME && voice.lang === DEFAULT_VOICE_LANG) ||
-        englishVoices.find((voice) => voice.name === DEFAULT_VOICE_NAME) ||
-        englishVoices.find((voice) => voice.lang === DEFAULT_VOICE_LANG && voice.name.toLowerCase().includes("google")) ||
-        englishVoices.find((voice) => voice.lang === DEFAULT_VOICE_LANG) ||
-        englishVoices[0];
-
-const selectedVoice =
-  englishVoices.find((voice) => voice.name === savedVoice) ||
-  defaultVoice;
+      const selectedVoice = englishVoices.find((voice) => voice.name === savedVoice) || englishVoices[0];
 
       elements.voiceSelect.innerHTML = "";
       englishVoices.forEach((voice) => {
