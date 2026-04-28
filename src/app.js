@@ -1,9 +1,16 @@
 (function () {
   "use strict";
 
-  const WORDS = window.SPELLING_WORDS || [];
+  const WORD_BANKS = {
+    normal: window.SPELLING_WORDS || [],
+    hard: window.HARD_SPELLING_WORDS || []
+  };
+  const MODE_STORAGE_KEY = "dino-speller-mode";
+  const DEFAULT_MODE = "normal";
+  let currentMode = getInitialMode();
+  let WORDS = WORD_BANKS[currentMode] || WORD_BANKS.normal;
 
-  const STORAGE_KEY = "dino-speller-state-v7";
+  const BASE_STORAGE_KEY = "dino-speller-state-v8";
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
   const LEGACY_STORAGE_KEYS = [
     "dino-speller-state-v6",
@@ -505,6 +512,8 @@
 
   const elements = {
     resetButton: document.querySelector("#resetButton"),
+    modeSelect: document.querySelector("#modeSelect"),
+    modeWordTotal: document.querySelector("#modeWordTotal"),
     refreshButton: document.querySelector("#refreshButton"),
     restingPanel: document.querySelector("#restingPanel"),
     practicePanel: document.querySelector("#practicePanel"),
@@ -554,13 +563,54 @@
     elements.resetButton.addEventListener("click", resetProgress);
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
+    elements.modeSelect.addEventListener("change", handleModeChange);
 
+    setupModeSelector();
     setupVoicePicker();
     selectNextWord();
     renderStats();
     renderShop();
     renderCollection();
     renderDueBadge();
+  }
+
+  function getInitialMode() {
+    const savedMode = window.localStorage.getItem(MODE_STORAGE_KEY);
+    return WORD_BANKS[savedMode] ? savedMode : DEFAULT_MODE;
+  }
+
+  function getStorageKey() {
+    return `${BASE_STORAGE_KEY}-${currentMode}`;
+  }
+
+  function getModeLabel(mode) {
+    return mode === "hard" ? "Hard mode" : "Normal mode";
+  }
+
+  function setupModeSelector() {
+    elements.modeSelect.value = currentMode;
+    elements.modeWordTotal.textContent = `${getModeLabel(currentMode)} · ${WORDS.length} words`;
+  }
+
+  function handleModeChange() {
+    const nextMode = WORD_BANKS[elements.modeSelect.value] ? elements.modeSelect.value : DEFAULT_MODE;
+    if (nextMode === currentMode) {
+      return;
+    }
+
+    currentMode = nextMode;
+    WORDS = WORD_BANKS[currentMode] || WORD_BANKS.normal;
+    window.localStorage.setItem(MODE_STORAGE_KEY, currentMode);
+    state = loadState();
+    currentWord = null;
+    lastPurchasedIndex = null;
+    clearAutoAdvance();
+    clearFeedback();
+    clearShopFlash();
+    selectNextWord();
+    renderStats();
+    renderShop();
+    renderCollection();
   }
 
   function makeBlankProgress(word) {
@@ -596,7 +646,7 @@
 
   function loadState() {
     const fallback = makeInitialState();
-    const currentRaw = window.localStorage.getItem(STORAGE_KEY);
+    const currentRaw = window.localStorage.getItem(getStorageKey());
     const legacyRaw = LEGACY_STORAGE_KEYS
       .map((key) => window.localStorage.getItem(key))
       .find((value) => Boolean(value));
@@ -675,11 +725,11 @@
   }
 
   function saveState() {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
   }
 
   function resetProgress() {
-    if (!window.confirm("Reset all spelling progress, points, and card purchases?")) {
+    if (!window.confirm(`Reset all ${getModeLabel(currentMode)} progress, points, and card purchases?`)) {
       return;
     }
 
@@ -866,6 +916,7 @@
     elements.masteredTotal.textContent = masteredCount;
     elements.cardsTotal.textContent = ownedCount;
     elements.shopOpenTotal.textContent = `${availableCount}/${CREATURE_CARD_TEMPLATES.length}`;
+    elements.modeWordTotal.textContent = `${getModeLabel(currentMode)} · ${WORDS.length} words`;
 
     if (nextExpansionTarget === null) {
       elements.nextShopText.textContent = "All cards released";
@@ -1114,7 +1165,7 @@
   }
 
   function scoreWord(word) {
-    return Math.max(1, word.length - 2);
+    return Math.max(1, word.length - 1);
   }
 
   function calculateEarnedPoints(targetState) {
@@ -1247,7 +1298,7 @@
   function renderRestingState() {
     elements.practicePanel.hidden = true;
     elements.restingPanel.hidden = false;
-    elements.nextDueText.textContent = "You mastered every word in the deck. Great work! You can still spend your points in the shop.";
+    elements.nextDueText.textContent = `You mastered every word in ${getModeLabel(currentMode)}. Great work! You can still spend your points in the shop.`;
   }
 
   function normaliseAnswer(value) {

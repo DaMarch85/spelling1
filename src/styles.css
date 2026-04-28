@@ -689,3 +689,59 @@ input:focus {
     align-items: stretch;
   }
 }
+
+.header-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mode-control {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0;
+}
+
+.mode-control span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mode-control select,
+.voice-control select {
+  min-height: 2.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  padding: 0.55rem 2.4rem 0.55rem 0.85rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 900;
+}
+
+.topline-pills {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .header-actions {
+    justify-content: stretch;
+  }
+
+  .mode-control,
+  .header-actions .secondary-button {
+    width: 100%;
+  }
+
+  .mode-control select {
+    width: 100%;
+  }
+}

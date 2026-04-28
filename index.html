@@ -14,14 +14,26 @@
         <h1>Dino Speller</h1>
         <p class="lede">Hear a word twice, spell it, earn points every time you get it right, then spend those points in the Danger Shop on mystery creature cards.</p>
       </div>
-      <button class="secondary-button" id="resetButton" type="button">Reset progress</button>
+      <div class="header-actions">
+        <label class="mode-control" for="modeSelect">
+          <span>Mode</span>
+          <select id="modeSelect">
+            <option value="normal">Normal mode</option>
+            <option value="hard">Hard mode</option>
+          </select>
+        </label>
+        <button class="secondary-button" id="resetButton" type="button">Reset progress</button>
+      </div>
     </header>
 
     <main class="layout">
       <section class="game-card" aria-labelledby="practiceTitle">
         <div class="game-card__topline">
           <h2 id="practiceTitle">Practice word</h2>
-          <span class="pill" id="dueCount">0 queued</span>
+          <div class="topline-pills">
+            <span class="pill" id="modeWordTotal">Normal mode · 0 words</span>
+            <span class="pill" id="dueCount">0 queued</span>
+          </div>
         </div>
 
         <div id="restingPanel" class="resting-panel" hidden>
@@ -196,6 +208,7 @@
     </template>
 
     <script src="src/words.js"></script>
+    <script src="src/hard-words.js"></script>
     <script src="src/app.js"></script>
   </body>
 </html>
