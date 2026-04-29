@@ -1,11 +1,14 @@
 (function () {
   "use strict";
 
+  const MIN_LEVEL = 1;
+  const MAX_LEVEL = 20;
+
   let WORD_ENTRIES = normaliseWordEntries(window.GRADED_SPELLING_WORDS || []);
   let WORD_ENTRIES_BY_LEVEL = groupWordEntriesByLevel(WORD_ENTRIES);
   let WORDS = [];
 
-  const BASE_STORAGE_KEY = "spell-battle-cards-state-v11";
+  const BASE_STORAGE_KEY = "spell-battle-cards-state-v12";
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
   const DEFAULT_VOICE_NAME = "Google UK English Male";
   const DEFAULT_VOICE_LANG = "en-GB";
@@ -26,8 +29,6 @@
   const MASTERY_STREAK = 3;
   const BATTLE_POINT_EVERY = 10;
   const LEVEL_UNLOCK_REMAINING = 10;
-  const MIN_LEVEL = 1;
-  const MAX_LEVEL = 20;
   const CARD_PRICE_STEP = 5;
   const CARD_PRICE_GROUP_SIZE = 5;
   const INITIAL_UNLOCKED_PACK_ID = "prehistoric";
@@ -2221,20 +2222,43 @@ function scoreWord(word) {
       return;
     }
 
+    let allRows = await fetchWordEntryRows({ listId: "graded-5000" });
+
+    if (allRows.length === 0) {
+      allRows = await fetchWordEntryRows({ listId: null });
+    }
+
+    if (allRows.length > 0) {
+      setWordEntries(allRows);
+      state = restoreStateShape(state);
+      saveState();
+      return;
+    }
+
+    elements.authStatus.textContent = "Using local word list. No database words were returned.";
+  }
+
+  async function fetchWordEntryRows({ listId }) {
     const allRows = [];
     const pageSize = 1000;
+
     for (let from = 0; from < 6000; from += pageSize) {
-      const { data, error } = await supabaseClient
+      let query = supabaseClient
         .from("word_entries")
         .select("word,level,band,simple_sentence,sort_order")
-        .eq("list_id", "graded-5000")
         .order("level", { ascending: true })
         .order("sort_order", { ascending: true })
         .range(from, from + pageSize - 1);
 
+      if (listId) {
+        query = query.eq("list_id", listId);
+      }
+
+      const { data, error } = await query;
+
       if (error) {
         elements.authStatus.textContent = `Using local word list. Database word list not loaded: ${error.message}`;
-        return;
+        return [];
       }
 
       allRows.push(...(data || []));
@@ -2243,11 +2267,7 @@ function scoreWord(word) {
       }
     }
 
-    if (allRows.length > 0) {
-      setWordEntries(allRows);
-      state = restoreStateShape(state);
-      saveState();
-    }
+    return allRows;
   }
 
   async function handleAuthSession(session) {
