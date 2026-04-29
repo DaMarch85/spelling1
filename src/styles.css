@@ -1061,3 +1061,48 @@ body {
     grid-column: 1 / -1;
   }
 }
+
+/* Items 8-13 update */
+.battle-jump-button {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.monster-card__stats--single {
+  grid-template-columns: 1fr;
+}
+
+.monster-card__stats--single .monster-stat {
+  text-align: left;
+}
+
+.monster-card__history-button {
+  width: 100%;
+  margin-top: 0.55rem;
+}
+
+.monster-card__history {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+}
+
+.monster-card__history h4 {
+  margin: 0 0 0.5rem;
+}
+
+.monster-card__history-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.monster-card.is-showing-history .monster-card__art,
+.monster-card.is-showing-history .monster-card__topline,
+.monster-card.is-showing-history .monster-card__title,
+.monster-card.is-showing-history .monster-card__description,
+.monster-card.is-showing-history .monster-card__stats,
+.monster-card.is-showing-history .monster-card__footer {
+  display: none;
+}

@@ -1236,6 +1236,7 @@
     masteredTotal: document.querySelector("#masteredTotal"),
     cardsTotal: document.querySelector("#cardsTotal"),
     battlePointsTotal: document.querySelector("#battlePointsTotal"),
+    wordsCorrectTotal: document.querySelector("#wordsCorrectTotal"),
     battlePointNextText: document.querySelector("#battlePointNextText"),
     shopOpenTotal: document.querySelector("#shopOpenTotal"),
     nextShopText: document.querySelector("#nextShopText"),
@@ -1254,6 +1255,7 @@
     signInButton: document.querySelector("#signInButton"),
     signUpButton: document.querySelector("#signUpButton"),
     signOutButton: document.querySelector("#signOutButton"),
+    battleArenaJump: document.querySelector("#battleArenaJump"),
     authStatus: document.querySelector("#authStatus"),
     packGrid: document.querySelector("#packGrid"),
     packStatusBadge: document.querySelector("#packStatusBadge"),
@@ -1289,12 +1291,16 @@
     elements.resetButton.addEventListener("click", resetProgress);
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
+    elements.collectionGrid.addEventListener("click", handleCollectionClick);
     elements.levelGrid.addEventListener("click", handleLevelChoice);
     elements.packGrid.addEventListener("click", handlePackClick);
     elements.signInButton.addEventListener("click", signInUser);
     elements.signUpButton.addEventListener("click", signUpUser);
     elements.signOutButton.addEventListener("click", signOutUser);
     elements.enterBattleButton.addEventListener("click", enterBattleArena);
+    if (elements.battleArenaJump) {
+      elements.battleArenaJump.addEventListener("click", () => elements.battlePanel.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
 
     renderLevelSelector();
     setupVoicePicker();
@@ -1869,6 +1875,9 @@
     elements.masteredTotal.textContent = masteredCount;
     elements.cardsTotal.textContent = ownedCount;
     elements.battlePointsTotal.textContent = Number(state.battlePoints || 0);
+    if (elements.wordsCorrectTotal) {
+      elements.wordsCorrectTotal.textContent = getTotalCorrectSpellings();
+    }
     elements.battlePointNextText.textContent = `${getCorrectSpellingsUntilBattlePoint()} correct to next battle point`;
     const highestLevel = getUnlockedLevels(state).slice(-1)[0] || "—";
     elements.wordLevelBadge.textContent = state.selectedLevel ? `Level ${state.selectedLevel} · ${WORDS.length} words active` : "Choose a level";
@@ -1886,6 +1895,10 @@
     }
 
     renderDueBadge();
+  }
+
+  function getTotalCorrectSpellings() {
+    return Object.values(state.progress || {}).reduce((total, progress) => total + Number(progress.correctAttempts || 0), 0);
   }
 
   function getCorrectSpellingsUntilBattlePoint() {
@@ -1963,19 +1976,26 @@
 
     state.ownedCards
       .slice()
-      .sort((a, b) => b.purchasedAt - a.purchasedAt)
+      .sort((a, b) => Number(b.purchasedAt || 0) - Number(a.purchasedAt || 0))
       .forEach((ownedCard) => {
         const template = ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index];
         const node = elements.collectionCardTemplate.content.cloneNode(true);
-        populateRevealedCardNode(node, template, `Owned · Card ${ownedCard.index + 1}`, getCardCost(ownedCard.index));
+        populateRevealedCardNode(node, template, `Owned · ${ownedCard.source || "collection"}`, getCardCost(ownedCard.index), ownedCard.attackStrength);
+        const article = node.querySelector(".monster-card");
+        article.dataset.instanceId = ownedCard.id || "";
+        article.dataset.cardIndex = String(ownedCard.index);
         node.querySelector(".monster-card__cost").textContent = "Owned";
+        const historyButton = node.querySelector("[data-history-toggle]");
+        if (historyButton) {
+          historyButton.dataset.instanceId = ownedCard.id || "";
+        }
         elements.collectionGrid.appendChild(node);
       });
 
     renderBattlePanel();
   }
 
-  function populateRevealedCardNode(node, template, metaText, cardCost) {
+  function populateRevealedCardNode(node, template, metaText, cardCost, battleAttack = null) {
     const image = node.querySelector(".monster-card__image");
     const rarity = getRarityForCost(cardCost);
     image.src = template.art;
@@ -1988,9 +2008,9 @@
     node.querySelector(".monster-card__rarity-pill").textContent = rarity;
     node.querySelector(".monster-card__title").textContent = template.name;
     node.querySelector(".monster-card__description").textContent = template.description;
-    node.querySelector(".monster-card__attack").textContent = template.attack;
-    node.querySelector(".monster-card__power").textContent = template.power;
-    node.querySelector(".monster-card__rarity-short").textContent = shortRarity(rarity);
+    node.querySelector(".monster-card__attack").textContent = Number.isFinite(Number(battleAttack)) ? Number(battleAttack) : "?";
+    const rarityShort = node.querySelector(".monster-card__rarity-short");
+    if (rarityShort) rarityShort.textContent = shortRarity(rarity);
     node.querySelector(".monster-card__meta").textContent = metaText;
     node.querySelector(".monster-card__cost").textContent = `${cardCost} pts`;
   }
@@ -2006,10 +2026,10 @@
     node.querySelector(".monster-card__type").textContent = template.type;
     node.querySelector(".monster-card__rarity-pill").textContent = rarity;
     node.querySelector(".monster-card__title").textContent = template.name;
-    node.querySelector(".monster-card__description").textContent = "A mystery card. Buy it to reveal the artwork.";
+    node.querySelector(".monster-card__description").textContent = "A mystery card. Buy it to reveal the artwork and unlock its Battle Arena Attack stat later in the arena.";
     node.querySelector(".monster-card__attack").textContent = "?";
-    node.querySelector(".monster-card__power").textContent = "?";
-    node.querySelector(".monster-card__rarity-short").textContent = shortRarity(rarity);
+    const rarityShort = node.querySelector(".monster-card__rarity-short");
+    if (rarityShort) rarityShort.textContent = shortRarity(rarity);
     node.querySelector(".monster-card__meta").textContent = metaText;
     node.querySelector(".monster-card__cost").textContent = `${cardCost} pts`;
   }
@@ -2026,11 +2046,63 @@
     node.querySelector(".monster-card__rarity-pill").textContent = "???";
     node.querySelector(".monster-card__title").textContent = "???";
     node.querySelector(".monster-card__description").textContent = pack ? `Unlock ${pack.name} to reveal this card.` : "Unlock another pack to reveal this card.";
-    node.querySelector(".monster-card__attack").textContent = "—";
-    node.querySelector(".monster-card__power").textContent = "—";
-    node.querySelector(".monster-card__rarity-short").textContent = "—";
+    node.querySelector(".monster-card__attack").textContent = "?";
+    const rarityShort = node.querySelector(".monster-card__rarity-short");
+    if (rarityShort) rarityShort.textContent = "?";
     node.querySelector(".monster-card__meta").textContent = "Locked";
     node.querySelector(".monster-card__cost").textContent = "—";
+  }
+
+  async function handleCollectionClick(event) {
+    const button = event.target.closest("[data-history-toggle]");
+    if (!button) return;
+    const article = button.closest(".monster-card");
+    const panel = article && article.querySelector(".monster-card__history");
+    const list = article && article.querySelector(".monster-card__history-list");
+    if (!article || !panel || !list) return;
+
+    const showing = article.classList.toggle("is-showing-history");
+    panel.hidden = !showing;
+    button.textContent = showing ? "Hide card history" : "Show card history";
+    if (!showing || list.dataset.loaded === "true") return;
+
+    list.innerHTML = "<li>Loading history…</li>";
+    const historyItems = await getCardHistory(article.dataset.instanceId, Number(article.dataset.cardIndex));
+    list.innerHTML = historyItems.map((item) => `<li>${item}</li>`).join("") || "<li>No history yet.</li>";
+    list.dataset.loaded = "true";
+  }
+
+  async function getCardHistory(instanceId, cardIndex) {
+    if (!supabaseClient || !currentUser || !instanceId) {
+      return [`First bought by ${getCurrentUsername()} on ${formatDate(Date.now())}.`];
+    }
+
+    const { data, error } = await supabaseClient
+      .from("card_history")
+      .select("user_id,action,created_at")
+      .eq("card_instance_id", instanceId)
+      .order("created_at", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return [`First bought by ${getCurrentUsername()} on ${formatDate(Date.now())}.`];
+    }
+
+    const userIds = [...new Set(data.map((row) => row.user_id).filter(Boolean))];
+    let nameMap = new Map();
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabaseClient.from("profiles").select("user_id,display_name,username").in("user_id", userIds);
+      nameMap = new Map((profiles || []).map((profile) => [profile.user_id, profile.display_name || profile.username || "Player"]));
+    }
+
+    return data.map((row, index) => {
+      const playerName = nameMap.get(row.user_id) || "Player";
+      const prefix = index === 0 && row.action !== "battle_win" ? "First bought by" : (row.action === "battle_win" ? "Won by" : "Bought by");
+      return `${prefix} ${playerName} on ${formatDate(row.created_at)}.`;
+    });
+  }
+
+  function formatDate(value) {
+    return new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   }
 
 function handleShopClick(event) {
@@ -2064,12 +2136,18 @@ function handleShopClick(event) {
     }
 
     state.points -= cardCost;
-    state.ownedCards.push({ index: cardIndex, purchasedAt: Date.now() });
+    const localCard = { index: cardIndex, purchasedAt: Date.now(), source: "shop", attackStrength: null };
+    state.ownedCards.push(localCard);
     lastPurchasedIndex = cardIndex;
-
-    const unlockedPack = unlockEligiblePacks(state);
     saveState();
-    await upsertUserCard(cardIndex);
+
+    const insertedCard = await upsertUserCard(cardIndex, "shop");
+    if (insertedCard && insertedCard.id) {
+      localCard.id = insertedCard.id;
+      localCard.purchasedAt = new Date(insertedCard.purchased_at).getTime() || localCard.purchasedAt;
+      saveState();
+    }
+
     renderStats();
     renderShop();
     renderCollection();
@@ -2077,7 +2155,8 @@ function handleShopClick(event) {
     renderBattlePanel();
 
     const template = ACTIVE_CREATURE_CARD_TEMPLATES[cardIndex];
-    const unlockText = unlockedPack ? ` ${unlockedPack.name} just unlocked!` : "";
+    const spareUnlocks = Math.max(0, getPackUnlockSlots(state) - (state.unlockedPackIds || []).length);
+    const unlockText = spareUnlocks > 0 ? " You can now unlock another pack." : "";
     setShopFlash(`Bought ${template.name} for ${cardCost} ${pluralise(cardCost, "point")}.${unlockText}`, "success");
   }
 
@@ -2238,17 +2317,16 @@ function handleShopClick(event) {
   }
 
   function sanitiseOwnedCards(cards) {
-    const seen = new Set();
     return cards
       .filter((card) => card && typeof card === "object")
-      .map((card) => ({ index: Number(card.index), purchasedAt: Number(card.purchasedAt) || Date.now() }))
-      .filter((card) => {
-        if (!Number.isInteger(card.index) || card.index < 0 || card.index >= ACTIVE_CREATURE_CARD_TEMPLATES.length || seen.has(card.index)) {
-          return false;
-        }
-        seen.add(card.index);
-        return true;
-      })
+      .map((card) => ({
+        id: card.id || null,
+        index: Number(card.index),
+        purchasedAt: Number(card.purchasedAt) || Date.now(),
+        source: card.source || "shop",
+        attackStrength: Number.isFinite(Number(card.attackStrength)) ? Number(card.attackStrength) : null
+      }))
+      .filter((card) => Number.isInteger(card.index) && card.index >= 0 && card.index < ACTIVE_CREATURE_CARD_TEMPLATES.length)
       .sort((a, b) => a.purchasedAt - b.purchasedAt);
   }
 
@@ -2553,17 +2631,31 @@ function scoreWord(word) {
     return restored;
   }
 
-  async function upsertUserCard(cardIndex) {
-    if (!supabaseClient || !currentUser) return;
+  async function upsertUserCard(cardIndex, source = "shop") {
+    if (!supabaseClient || !currentUser) return null;
 
-    await supabaseClient
+    const { data, error } = await supabaseClient
       .from("user_cards")
-      .upsert({
+      .insert({
         user_id: currentUser.id,
         card_index: cardIndex,
         purchased_at: new Date().toISOString(),
-        acquired_from: "shop"
-      }, { onConflict: "user_id,card_index" });
+        acquired_from: source,
+        attack_strength: null
+      })
+      .select()
+      .single();
+
+    if (!error && data && data.id) {
+      await supabaseClient.from("card_history").insert({
+        card_instance_id: data.id,
+        user_id: currentUser.id,
+        action: source === "battle_win" ? "battle_win" : "shop_purchase",
+        created_at: data.purchased_at || new Date().toISOString()
+      });
+    }
+
+    return error ? null : data;
   }
 
   async function refreshCardsFromSupabase() {
@@ -2571,7 +2663,7 @@ function scoreWord(word) {
 
     const { data, error } = await supabaseClient
       .from("user_cards")
-      .select("card_index,purchased_at")
+      .select("id,card_index,purchased_at,acquired_from,attack_strength")
       .eq("user_id", currentUser.id)
       .order("purchased_at", { ascending: true });
 
@@ -2581,8 +2673,11 @@ function scoreWord(word) {
     }
 
     state.ownedCards = sanitiseOwnedCards((data || []).map((card) => ({
+      id: card.id,
       index: card.card_index,
-      purchasedAt: new Date(card.purchased_at).getTime() || Date.now()
+      purchasedAt: new Date(card.purchased_at).getTime() || Date.now(),
+      source: card.acquired_from || "shop",
+      attackStrength: Number.isFinite(Number(card.attack_strength)) ? Number(card.attack_strength) : null
     })));
     ensurePackUnlockState(state);
     saveState();
@@ -2598,8 +2693,8 @@ function scoreWord(word) {
     elements.battleCardSelect.innerHTML = "";
     for (const ownedCard of ownedCards) {
       const option = document.createElement("option");
-      option.value = String(ownedCard.index);
-      option.textContent = `${ownedCard.template.name} (${getCardCost(ownedCard.index)} pts)`;
+      option.value = String(ownedCard.id || `${ownedCard.index}-${ownedCard.purchasedAt}`);
+      option.textContent = `${ownedCard.template.name} (Attack ${Number.isFinite(Number(ownedCard.attackStrength)) ? ownedCard.attackStrength : "?"})`;
       elements.battleCardSelect.appendChild(option);
     }
 
@@ -2629,9 +2724,9 @@ function scoreWord(word) {
       return;
     }
 
-    const cardIndex = Number(elements.battleCardSelect.value);
-    const ownedSet = getOwnedIndexes();
-    if (!Number.isInteger(cardIndex) || !ownedSet.has(cardIndex)) {
+    const selectedId = String(elements.battleCardSelect.value || "");
+    const ownedCard = state.ownedCards.find((card) => String(card.id || `${card.index}-${card.purchasedAt}`) === selectedId);
+    if (!ownedCard) {
       elements.battleStatus.textContent = "Choose a card you own.";
       return;
     }
@@ -2645,7 +2740,7 @@ function scoreWord(word) {
     elements.battleResult.textContent = "";
     renderBattleGrid(0.5);
 
-    const attackStrength = await getOrCreateBattleStrength(cardIndex);
+    const attackStrength = await getOrCreateBattleStrength(ownedCard);
     const displayName = getCurrentUsername();
 
     const { data: waitingBattle } = await supabaseClient
@@ -2662,7 +2757,8 @@ function scoreWord(word) {
         .update({
           opponent_id: currentUser.id,
           opponent_name: displayName,
-          opponent_card_index: cardIndex,
+          opponent_card_index: ownedCard.index,
+          opponent_card_id: ownedCard.id || null,
           opponent_attack: attackStrength,
           status: "ready"
         })
@@ -2689,7 +2785,8 @@ function scoreWord(word) {
       .insert({
         challenger_id: currentUser.id,
         challenger_name: displayName,
-        challenger_card_index: cardIndex,
+        challenger_card_index: ownedCard.index,
+        challenger_card_id: ownedCard.id || null,
         challenger_attack: attackStrength,
         status: "waiting"
       })
@@ -2704,7 +2801,7 @@ function scoreWord(word) {
 
     spendBattlePoint();
     currentBattle = createdBattle;
-    elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[cardIndex].name} strength: ${attackStrength}.`;
+    elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index].name} strength: ${attackStrength}.`;
     elements.battleOpponent.textContent = "";
     startBattlePolling(createdBattle.id);
   }
@@ -2715,28 +2812,32 @@ function scoreWord(word) {
     renderStats();
   }
 
-  async function getOrCreateBattleStrength(cardIndex) {
-    const { data } = await supabaseClient
-      .from("card_battle_stats")
-      .select("attack_strength")
-      .eq("user_id", currentUser.id)
-      .eq("card_index", cardIndex)
-      .maybeSingle();
-
-    if (data && Number.isFinite(data.attack_strength)) {
-      return data.attack_strength;
+  async function getOrCreateBattleStrength(ownedCard) {
+    if (Number.isFinite(Number(ownedCard.attackStrength))) {
+      return Number(ownedCard.attackStrength);
     }
 
-    const minStrength = getCardCost(cardIndex);
+    const minStrength = getCardCost(ownedCard.index);
     const attackStrength = randomInt(minStrength, 100);
-    await supabaseClient
-      .from("card_battle_stats")
-      .upsert({
-        user_id: currentUser.id,
-        card_index: cardIndex,
-        attack_strength: attackStrength,
-        created_at: new Date().toISOString()
-      }, { onConflict: "user_id,card_index" });
+
+    if (ownedCard.id) {
+      const { error } = await supabaseClient
+        .from("user_cards")
+        .update({ attack_strength: attackStrength })
+        .eq("id", ownedCard.id)
+        .eq("user_id", currentUser.id);
+
+      if (!error) {
+        ownedCard.attackStrength = attackStrength;
+        const local = state.ownedCards.find((card) => card.id === ownedCard.id);
+        if (local) local.attackStrength = attackStrength;
+        saveState();
+        renderCollection();
+      }
+    } else {
+      ownedCard.attackStrength = attackStrength;
+      saveState();
+    }
 
     return attackStrength;
   }
