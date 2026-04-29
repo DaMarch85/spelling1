@@ -2104,24 +2104,41 @@ function handleShopClick(event) {
   }
 
   function unlockEligiblePacks(targetState) {
-    const originalState = state;
-    if (targetState !== state) {
-      state = targetState;
-    }
-
+    // This function may run while the main `state` variable is still being
+    // created, so it must only use the state object passed in here.
     let newlyUnlockedPack = null;
-    const nextPack = getNextLockedPack();
-    if (nextPack) {
-      const progress = getCurrentPackProgress();
-      if (progress.owned >= progress.target) {
-        state.unlockedPackIds.push(nextPack.id);
-        newlyUnlockedPack = nextPack;
-      }
+    const validPackIds = new Set(CARD_PACKS.map((pack) => pack.id));
+    const ownedIndexes = new Set((targetState.ownedCards || []).map((card) => card.index));
+
+    targetState.unlockedPackIds = Array.isArray(targetState.unlockedPackIds)
+      ? targetState.unlockedPackIds.filter((packId) => validPackIds.has(packId))
+      : [];
+
+    if (targetState.unlockedPackIds.length === 0) {
+      targetState.unlockedPackIds = [INITIAL_UNLOCKED_PACK_ID];
     }
 
-    if (targetState !== originalState) {
-      targetState.unlockedPackIds = state.unlockedPackIds;
-      state = originalState;
+    let shouldCheckAgain = true;
+    while (shouldCheckAgain) {
+      shouldCheckAgain = false;
+      const nextPack = CARD_PACKS.find((pack) => !targetState.unlockedPackIds.includes(pack.id));
+      if (!nextPack) {
+        break;
+      }
+
+      const currentPackId = targetState.unlockedPackIds[targetState.unlockedPackIds.length - 1] || INITIAL_UNLOCKED_PACK_ID;
+      const currentPack = getPackById(currentPackId) || CARD_PACKS[0];
+      const cardIndexesInCurrentPack = CREATURE_CARD_TEMPLATES
+        .map((card, index) => card.packId === currentPack.id ? index : null)
+        .filter((index) => index !== null);
+      const ownedInCurrentPack = cardIndexesInCurrentPack.filter((index) => ownedIndexes.has(index)).length;
+      const targetOwned = Math.max(0, cardIndexesInCurrentPack.length - PACK_UNLOCK_REMAINING_TRIGGER);
+
+      if (ownedInCurrentPack >= targetOwned) {
+        targetState.unlockedPackIds.push(nextPack.id);
+        newlyUnlockedPack = nextPack;
+        shouldCheckAgain = true;
+      }
     }
 
     return newlyUnlockedPack;
