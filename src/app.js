@@ -2008,7 +2008,7 @@
     node.querySelector(".monster-card__rarity-pill").textContent = rarity;
     node.querySelector(".monster-card__title").textContent = template.name;
     node.querySelector(".monster-card__description").textContent = template.description;
-    node.querySelector(".monster-card__attack").textContent = Number.isFinite(Number(battleAttack)) ? Number(battleAttack) : "?";
+    node.querySelector(".monster-card__attack").textContent = isValidBattleAttack(battleAttack) ? Number(battleAttack) : "?";
     const rarityShort = node.querySelector(".monster-card__rarity-short");
     if (rarityShort) rarityShort.textContent = shortRarity(rarity);
     node.querySelector(".monster-card__meta").textContent = metaText;
@@ -2316,6 +2316,16 @@ function handleShopClick(event) {
     }
   }
 
+  function normaliseBattleAttack(value) {
+    const attack = Number(value);
+    return isValidBattleAttack(attack) ? attack : null;
+  }
+
+  function isValidBattleAttack(value, minimum = 1) {
+    const attack = Number(value);
+    return Number.isInteger(attack) && attack >= minimum && attack <= 100;
+  }
+
   function sanitiseOwnedCards(cards) {
     return cards
       .filter((card) => card && typeof card === "object")
@@ -2324,7 +2334,7 @@ function handleShopClick(event) {
         index: Number(card.index),
         purchasedAt: Number(card.purchasedAt) || Date.now(),
         source: card.source || "shop",
-        attackStrength: Number.isFinite(Number(card.attackStrength)) ? Number(card.attackStrength) : null
+        attackStrength: normaliseBattleAttack(card.attackStrength)
       }))
       .filter((card) => Number.isInteger(card.index) && card.index >= 0 && card.index < ACTIVE_CREATURE_CARD_TEMPLATES.length)
       .sort((a, b) => a.purchasedAt - b.purchasedAt);
@@ -2677,7 +2687,7 @@ function scoreWord(word) {
       index: card.card_index,
       purchasedAt: new Date(card.purchased_at).getTime() || Date.now(),
       source: card.acquired_from || "shop",
-      attackStrength: Number.isFinite(Number(card.attack_strength)) ? Number(card.attack_strength) : null
+      attackStrength: normaliseBattleAttack(card.attack_strength)
     })));
     ensurePackUnlockState(state);
     saveState();
@@ -2694,7 +2704,7 @@ function scoreWord(word) {
     for (const ownedCard of ownedCards) {
       const option = document.createElement("option");
       option.value = String(ownedCard.id || `${ownedCard.index}-${ownedCard.purchasedAt}`);
-      option.textContent = `${ownedCard.template.name} (Attack ${Number.isFinite(Number(ownedCard.attackStrength)) ? ownedCard.attackStrength : "?"})`;
+      option.textContent = `${ownedCard.template.name} (Attack ${isValidBattleAttack(ownedCard.attackStrength) ? ownedCard.attackStrength : "?"})`;
       elements.battleCardSelect.appendChild(option);
     }
 
@@ -2813,11 +2823,11 @@ function scoreWord(word) {
   }
 
   async function getOrCreateBattleStrength(ownedCard) {
-    if (Number.isFinite(Number(ownedCard.attackStrength))) {
+    const minStrength = getCardCost(ownedCard.index);
+    if (isValidBattleAttack(ownedCard.attackStrength, minStrength)) {
       return Number(ownedCard.attackStrength);
     }
 
-    const minStrength = getCardCost(ownedCard.index);
     const attackStrength = randomInt(minStrength, 100);
 
     if (ownedCard.id) {
