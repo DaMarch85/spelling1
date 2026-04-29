@@ -14,28 +14,18 @@
         <h1>Spell Battle Cards</h1>
         <p class="lede">Spell words, earn points, buy cards, unlock packs, and battle other players.</p>
       </div>
-      <div class="header-actions">
-        <button class="secondary-button" id="resetButton" type="button">Reset</button>
+      <div class="header-actions auth-card auth-card--compact" id="authPanel" aria-label="Account">
+        <label for="authEmail">Username</label>
+        <input id="authEmail" type="text" autocomplete="username" placeholder="username" />
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="text" autocomplete="current-password" placeholder="password" />
+        <button class="primary-button" id="signInButton" type="button">Log in</button>
+        <button class="secondary-button" id="signUpButton" type="button">Create account</button>
+        <button class="secondary-button" id="signOutButton" type="button" hidden>Sign out</button>
+        <p class="small-note" id="authStatus">Checking account status…</p>
+        <button class="secondary-button reset-inline" id="resetButton" type="button">Reset</button>
       </div>
     </header>
-
-    <section class="auth-card" id="authPanel" aria-labelledby="authTitle">
-      <div>
-        <h2 id="authTitle">Account</h2>
-        <p class="small-note" id="authStatus">Checking account status…</p>
-      </div>
-      <div class="auth-form">
-        <label for="authEmail">Email</label>
-        <input id="authEmail" type="email" autocomplete="email" placeholder="player@example.com" />
-        <label for="authPassword">Password</label>
-        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password" />
-        <div class="button-row">
-          <button class="primary-button" id="signInButton" type="button">Sign in</button>
-          <button class="secondary-button" id="signUpButton" type="button">Create account</button>
-          <button class="secondary-button" id="signOutButton" type="button" hidden>Sign out</button>
-        </div>
-      </div>
-    </section>
 
     <section class="level-card" id="levelPanel" aria-labelledby="levelTitle">
       <div class="game-card__topline">
@@ -240,7 +230,7 @@
     </template>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="/src/supabase-config.js?v=worker-config-3"></script>
+    <script src="src/supabase-config.js"></script>
     <script src="src/graded-words.js"></script>
     <script src="src/app.js"></script>
   </body>

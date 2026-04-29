@@ -998,3 +998,66 @@ body {
     margin-right: 1.25rem;
   }
 }
+
+/* Items 1-7 update: compact account bar, visible levels, manual pack unlocks */
+.auth-card--compact {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr) auto minmax(8rem, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.7rem;
+  max-width: 100%;
+}
+
+.auth-card--compact label {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 900;
+  font-size: 0.8rem;
+}
+
+.auth-card--compact input {
+  min-height: 2.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0.45rem 0.65rem;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.auth-card--compact .primary-button,
+.auth-card--compact .secondary-button {
+  padding: 0.65rem 0.8rem;
+  min-height: 2.45rem;
+  white-space: nowrap;
+}
+
+.auth-card--compact #authStatus {
+  grid-column: 1 / -1;
+  margin: 0.2rem 0 0;
+}
+
+.level-tile.is-selected {
+  border-color: rgba(82, 212, 140, 0.55);
+  box-shadow: 0 0 0 1px rgba(82, 212, 140, 0.22) inset;
+}
+
+.pack-tile button {
+  width: fit-content;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 1100px) {
+  .auth-card--compact {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .auth-card--compact label {
+    grid-column: auto;
+  }
+
+  .auth-card--compact #authStatus {
+    grid-column: 1 / -1;
+  }
+}

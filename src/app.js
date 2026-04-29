@@ -8,7 +8,7 @@
   let WORD_ENTRIES_BY_LEVEL = groupWordEntriesByLevel(WORD_ENTRIES);
   let WORDS = [];
 
-  const BASE_STORAGE_KEY = "spell-battle-cards-state-v12";
+  const BASE_STORAGE_KEY = "spell-battle-cards-state-v13";
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
   const DEFAULT_VOICE_NAME = "Google UK English Male";
   const DEFAULT_VOICE_LANG = "en-GB";
@@ -1105,6 +1105,87 @@
     }
 ].map(addPackToCard));
 
+  const ADDITIONAL_CARD_PACKS = Object.freeze([
+    { id: "unicorns-fairies", name: "Unicorns & Fairies", shortName: "Magic", description: "Magical unicorns and fairies with bright, gentle artwork.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "solar-system", name: "Solar System", shortName: "Space", description: "Planets, moons, and cosmic wonders.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "uk-animals", name: "UK Animals", shortName: "UK Animals", description: "Familiar wildlife from woods, coasts, rivers, and moorland.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "flowers", name: "Flowers", shortName: "Flowers", description: "Beautiful flower cards with colourful artwork.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "greek-gods", name: "Greek Gods", shortName: "Olympus", description: "Dramatic gods and goddesses from ancient Greek myths.", unlockHint: "Available after you earn a pack unlock." }
+  ]);
+
+  const ADDITIONAL_CREATURE_CARD_TEMPLATES = Object.freeze([
+    { packId: "unicorns-fairies", name: "Moonlight Unicorn", slug: "moonlight-unicorn", type: "Unicorn", tagline: "Silver hoofprints under moonlight", description: "Silver hoofprints under moonlight.", art: "src/card-art/moonlight-unicorn.webp" },
+    { packId: "unicorns-fairies", name: "Rainbow Unicorn", slug: "rainbow-unicorn", type: "Unicorn", tagline: "A rainbow-maned unicorn charging through flowers", description: "A rainbow-maned unicorn charging through flowers.", art: "src/card-art/rainbow-unicorn.webp" },
+    { packId: "unicorns-fairies", name: "Crystal Unicorn", slug: "crystal-unicorn", type: "Unicorn", tagline: "A sparkling unicorn made of crystal light", description: "A sparkling unicorn made of crystal light.", art: "src/card-art/crystal-unicorn.webp" },
+    { packId: "unicorns-fairies", name: "Forest Unicorn", slug: "forest-unicorn", type: "Unicorn", tagline: "A gentle guardian of green woodland glades", description: "A gentle guardian of green woodland glades.", art: "src/card-art/forest-unicorn.webp" },
+    { packId: "unicorns-fairies", name: "Golden Unicorn", slug: "golden-unicorn", type: "Unicorn", tagline: "A shining unicorn glowing with golden magic", description: "A shining unicorn glowing with golden magic.", art: "src/card-art/golden-unicorn.webp" },
+    { packId: "unicorns-fairies", name: "Storm Unicorn", slug: "storm-unicorn", type: "Unicorn", tagline: "A fierce unicorn racing through lightning", description: "A fierce unicorn racing through lightning.", art: "src/card-art/storm-unicorn.webp" },
+    { packId: "unicorns-fairies", name: "Rose Fairy", slug: "rose-fairy", type: "Fairy", tagline: "A fairy among roses and warm pink petals", description: "A fairy among roses and warm pink petals.", art: "src/card-art/rose-fairy.webp" },
+    { packId: "unicorns-fairies", name: "Frost Fairy", slug: "frost-fairy", type: "Fairy", tagline: "An icy fairy with snowflakes in her hand", description: "An icy fairy with snowflakes in her hand.", art: "src/card-art/frost-fairy.webp" },
+    { packId: "unicorns-fairies", name: "River Fairy", slug: "river-fairy", type: "Fairy", tagline: "A calm river fairy beside glowing water", description: "A calm river fairy beside glowing water.", art: "src/card-art/river-fairy.webp" },
+    { packId: "unicorns-fairies", name: "Star Fairy", slug: "star-fairy", type: "Fairy", tagline: "A fairy gathering tiny stars from the sky", description: "A fairy gathering tiny stars from the sky.", art: "src/card-art/star-fairy.webp" },
+    { packId: "unicorns-fairies", name: "Sunset Fairy", slug: "sunset-fairy", type: "Fairy", tagline: "A fairy lit by a fiery orange sunset", description: "A fairy lit by a fiery orange sunset.", art: "src/card-art/sunset-fairy.webp" },
+    { packId: "unicorns-fairies", name: "Woodland Fairy", slug: "woodland-fairy", type: "Fairy", tagline: "A forest fairy among leaves and mushrooms", description: "A forest fairy among leaves and mushrooms.", art: "src/card-art/woodland-fairy.webp" },
+    { packId: "solar-system", name: "Sun", slug: "sun", type: "Star", tagline: "The blazing star at the centre of our solar system", description: "The blazing star at the centre of our solar system.", art: "src/card-art/sun.webp" },
+    { packId: "solar-system", name: "Mercury", slug: "mercury", type: "Planet", tagline: "The smallest planet and the closest to the Sun", description: "The smallest planet and the closest to the Sun.", art: "src/card-art/mercury.webp" },
+    { packId: "solar-system", name: "Venus", slug: "venus", type: "Planet", tagline: "A swirling golden world wrapped in thick cloud", description: "A swirling golden world wrapped in thick cloud.", art: "src/card-art/venus.webp" },
+    { packId: "solar-system", name: "Earth", slug: "earth", type: "Planet", tagline: "Our blue home world full of oceans and life", description: "Our blue home world full of oceans and life.", art: "src/card-art/earth.webp" },
+    { packId: "solar-system", name: "Moon", slug: "moon", type: "Moon", tagline: "Earth’s bright natural satellite", description: "Earth’s bright natural satellite.", art: "src/card-art/moon.webp" },
+    { packId: "solar-system", name: "Mars", slug: "mars", type: "Planet", tagline: "The red planet of dust, rock, and giant volcanoes", description: "The red planet of dust, rock, and giant volcanoes.", art: "src/card-art/mars.webp" },
+    { packId: "solar-system", name: "Jupiter", slug: "jupiter", type: "Planet", tagline: "The largest planet, famous for huge storms", description: "The largest planet, famous for huge storms.", art: "src/card-art/jupiter.webp" },
+    { packId: "solar-system", name: "Saturn", slug: "saturn", type: "Planet", tagline: "The ringed giant with a golden glow", description: "The ringed giant with a golden glow.", art: "src/card-art/saturn.webp" },
+    { packId: "solar-system", name: "Uranus", slug: "uranus", type: "Planet", tagline: "An icy giant with pale blue rings", description: "An icy giant with pale blue rings.", art: "src/card-art/uranus.webp" },
+    { packId: "solar-system", name: "Neptune", slug: "neptune", type: "Planet", tagline: "A deep blue world of fast winds", description: "A deep blue world of fast winds.", art: "src/card-art/neptune.webp" },
+    { packId: "solar-system", name: "Pluto", slug: "pluto", type: "Dwarf Planet", tagline: "A distant icy dwarf world", description: "A distant icy dwarf world.", art: "src/card-art/pluto.webp" },
+    { packId: "solar-system", name: "Comet", slug: "comet", type: "Comet", tagline: "A blazing comet streaking across the stars", description: "A blazing comet streaking across the stars.", art: "src/card-art/comet.webp" },
+    { packId: "uk-animals", name: "Red Fox", slug: "red-fox", type: "Mammal", tagline: "A clever fox with a bright copper coat", description: "A clever fox with a bright copper coat.", art: "src/card-art/red-fox.webp" },
+    { packId: "uk-animals", name: "Badger", slug: "badger", type: "Mammal", tagline: "A sturdy badger with bold black-and-white stripes", description: "A sturdy badger with bold black-and-white stripes.", art: "src/card-art/badger.webp" },
+    { packId: "uk-animals", name: "Hedgehog", slug: "hedgehog", type: "Mammal", tagline: "A small hedgehog nosing through autumn leaves", description: "A small hedgehog nosing through autumn leaves.", art: "src/card-art/hedgehog.webp" },
+    { packId: "uk-animals", name: "Otter", slug: "otter", type: "Mammal", tagline: "A playful otter gliding through a clear stream", description: "A playful otter gliding through a clear stream.", art: "src/card-art/otter.webp" },
+    { packId: "uk-animals", name: "Barn Owl", slug: "barn-owl", type: "Bird", tagline: "A pale owl with a heart-shaped face", description: "A pale owl with a heart-shaped face.", art: "src/card-art/barn-owl.webp" },
+    { packId: "uk-animals", name: "Puffin", slug: "puffin", type: "Bird", tagline: "A seabird with a colourful beak", description: "A seabird with a colourful beak.", art: "src/card-art/puffin.webp" },
+    { packId: "uk-animals", name: "Red Squirrel", slug: "red-squirrel", type: "Mammal", tagline: "A fluffy-tailed squirrel in a sunlit tree", description: "A fluffy-tailed squirrel in a sunlit tree.", art: "src/card-art/red-squirrel.webp" },
+    { packId: "uk-animals", name: "Red Deer", slug: "red-deer", type: "Mammal", tagline: "A majestic stag standing in open hills", description: "A majestic stag standing in open hills.", art: "src/card-art/red-deer.webp" },
+    { packId: "uk-animals", name: "Grey Seal", slug: "grey-seal", type: "Marine Mammal", tagline: "A speckled seal resting by the shore", description: "A speckled seal resting by the shore.", art: "src/card-art/grey-seal.webp" },
+    { packId: "uk-animals", name: "European Robin", slug: "european-robin", type: "Bird", tagline: "A friendly robin with a bright orange chest", description: "A friendly robin with a bright orange chest.", art: "src/card-art/european-robin.webp" },
+    { packId: "uk-animals", name: "Scottish Wildcat", slug: "scottish-wildcat", type: "Mammal", tagline: "A rare wildcat of the rugged Highlands", description: "A rare wildcat of the rugged Highlands.", art: "src/card-art/scottish-wildcat.webp" },
+    { packId: "uk-animals", name: "Brown Hare", slug: "brown-hare", type: "Mammal", tagline: "A long-eared hare watching the sunset", description: "A long-eared hare watching the sunset.", art: "src/card-art/brown-hare.webp" },
+    { packId: "flowers", name: "Rose", slug: "rose", type: "Flower", tagline: "A classic red rose covered with dew", description: "A classic red rose covered with dew.", art: "src/card-art/rose.webp" },
+    { packId: "flowers", name: "Sunflower", slug: "sunflower", type: "Flower", tagline: "A tall sunflower turning toward the light", description: "A tall sunflower turning toward the light.", art: "src/card-art/sunflower.webp" },
+    { packId: "flowers", name: "Tulip", slug: "tulip", type: "Flower", tagline: "A bright tulip glowing in a spring garden", description: "A bright tulip glowing in a spring garden.", art: "src/card-art/tulip.webp" },
+    { packId: "flowers", name: "Bluebell", slug: "bluebell", type: "Flower", tagline: "Bluebells nodding in a shady woodland", description: "Bluebells nodding in a shady woodland.", art: "src/card-art/bluebell.webp" },
+    { packId: "flowers", name: "Daffodil", slug: "daffodil", type: "Flower", tagline: "Golden daffodils sparkling in the morning", description: "Golden daffodils sparkling in the morning.", art: "src/card-art/daffodil.webp" },
+    { packId: "flowers", name: "Lavender", slug: "lavender", type: "Flower", tagline: "Purple lavender filling the air with scent", description: "Purple lavender filling the air with scent.", art: "src/card-art/lavender.webp" },
+    { packId: "flowers", name: "Lily", slug: "lily", type: "Flower", tagline: "A white lily shining beneath the moon", description: "A white lily shining beneath the moon.", art: "src/card-art/lily.webp" },
+    { packId: "flowers", name: "Orchid", slug: "orchid", type: "Flower", tagline: "An orchid blooming in a hidden glade", description: "An orchid blooming in a hidden glade.", art: "src/card-art/orchid.webp" },
+    { packId: "flowers", name: "Cherry Blossom", slug: "cherry-blossom", type: "Flower", tagline: "Soft pink blossom drifting on the breeze", description: "Soft pink blossom drifting on the breeze.", art: "src/card-art/cherry-blossom.webp" },
+    { packId: "flowers", name: "Poppy", slug: "poppy", type: "Flower", tagline: "A vivid red poppy under a warm sky", description: "A vivid red poppy under a warm sky.", art: "src/card-art/poppy.webp" },
+    { packId: "flowers", name: "Peony", slug: "peony", type: "Flower", tagline: "A full pink peony with ruffled petals", description: "A full pink peony with ruffled petals.", art: "src/card-art/peony.webp" },
+    { packId: "flowers", name: "Snowdrop", slug: "snowdrop", type: "Flower", tagline: "Small white snowdrops pushing through frost", description: "Small white snowdrops pushing through frost.", art: "src/card-art/snowdrop.webp" },
+    { packId: "greek-gods", name: "Zeus", slug: "zeus", type: "God", tagline: "King of the gods with storm and lightning", description: "King of the gods with storm and lightning.", art: "src/card-art/zeus.webp" },
+    { packId: "greek-gods", name: "Hera", slug: "hera", type: "Goddess", tagline: "Queen of Olympus seated in splendour", description: "Queen of Olympus seated in splendour.", art: "src/card-art/hera.webp" },
+    { packId: "greek-gods", name: "Poseidon", slug: "poseidon", type: "God", tagline: "Lord of the sea raising his trident", description: "Lord of the sea raising his trident.", art: "src/card-art/poseidon.webp" },
+    { packId: "greek-gods", name: "Athena", slug: "athena", type: "Goddess", tagline: "Warrior goddess of wisdom and strategy", description: "Warrior goddess of wisdom and strategy.", art: "src/card-art/athena.webp" },
+    { packId: "greek-gods", name: "Apollo", slug: "apollo", type: "God", tagline: "God of music, sunlight, and prophecy", description: "God of music, sunlight, and prophecy.", art: "src/card-art/apollo.webp" },
+    { packId: "greek-gods", name: "Artemis", slug: "artemis", type: "Goddess", tagline: "Goddess of the wild and the moonlit hunt", description: "Goddess of the wild and the moonlit hunt.", art: "src/card-art/artemis.webp" },
+    { packId: "greek-gods", name: "Ares", slug: "ares", type: "God", tagline: "Armoured god of battle and fury", description: "Armoured god of battle and fury.", art: "src/card-art/ares.webp" },
+    { packId: "greek-gods", name: "Aphrodite", slug: "aphrodite", type: "Goddess", tagline: "Goddess of love rising in beauty", description: "Goddess of love rising in beauty.", art: "src/card-art/aphrodite.webp" },
+    { packId: "greek-gods", name: "Hermes", slug: "hermes", type: "God", tagline: "Swift messenger god with winged sandals", description: "Swift messenger god with winged sandals.", art: "src/card-art/hermes.webp" },
+    { packId: "greek-gods", name: "Demeter", slug: "demeter", type: "Goddess", tagline: "Goddess of harvest and fertile fields", description: "Goddess of harvest and fertile fields.", art: "src/card-art/demeter.webp" },
+    { packId: "greek-gods", name: "Hades", slug: "hades", type: "God", tagline: "Ruler of the underworld and its shadows", description: "Ruler of the underworld and its shadows.", art: "src/card-art/hades.webp" },
+    { packId: "greek-gods", name: "Hephaestus", slug: "hephaestus", type: "God", tagline: "Master smith of fire and the forge", description: "Master smith of fire and the forge.", art: "src/card-art/hephaestus.webp" }
+  ]);
+
+  const ACTIVE_CARD_PACKS = Object.freeze([
+    ...CARD_PACKS.filter((pack) => pack.id !== "nature"),
+    ...ADDITIONAL_CARD_PACKS
+  ]);
+
+  const ACTIVE_CREATURE_CARD_TEMPLATES = Object.freeze([
+    ...CREATURE_CARD_TEMPLATES.filter((card) => card.packId !== "nature"),
+    ...ADDITIONAL_CREATURE_CARD_TEMPLATES
+  ]);
+
   const CONTEXT_CLUES = Object.freeze({
     there: "Clue: The toy is over ___.",
     their: "Clue: The children packed ___ bags.",
@@ -1209,6 +1290,7 @@
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
     elements.levelGrid.addEventListener("click", handleLevelChoice);
+    elements.packGrid.addEventListener("click", handlePackClick);
     elements.signInButton.addEventListener("click", signInUser);
     elements.signUpButton.addEventListener("click", signUpUser);
     elements.signOutButton.addEventListener("click", signOutUser);
@@ -1315,26 +1397,21 @@
     }
 
     const hasLevel = Boolean(state && state.selectedLevel);
-    elements.levelPanel.hidden = hasLevel;
+    elements.levelPanel.hidden = false;
     elements.levelGrid.innerHTML = "";
 
-    if (hasLevel) {
-      elements.levelStatus.textContent = `Starting level ${state.selectedLevel}. Levels unlocked: ${getUnlockedLevels(state).join(", ")}.`;
-      return;
-    }
-
-    elements.levelStatus.textContent = currentUser
-      ? "Choose the level that feels right. You can see examples before starting."
-      : "Choose a starting level. Sign in to save it online.";
+    elements.levelStatus.textContent = hasLevel
+      ? `Current level ${state.selectedLevel}. You can change it at any time.`
+      : (currentUser ? "Choose the level that feels right. You can change it at any time." : "Choose a starting level. Sign in to save it online.");
 
     for (let level = MIN_LEVEL; level <= MAX_LEVEL; level += 1) {
       const examples = getLevelEntries(level).slice(0, 10).map((entry) => entry.word);
       const tile = document.createElement("article");
-      tile.className = "level-tile";
+      tile.className = `level-tile${state.selectedLevel === level ? " is-selected" : ""}`;
       tile.innerHTML = `
         <h3>Level ${level}</h3>
         <p>${examples.join(", ") || "Words loading…"}</p>
-        <button class="primary-button" type="button" data-level="${level}">Start level ${level}</button>
+        <button class="primary-button" type="button" data-level="${level}" ${state.selectedLevel === level ? "disabled" : ""}>${state.selectedLevel === level ? "Selected" : `Use level ${level}`}</button>
       `;
       elements.levelGrid.appendChild(tile);
     }
@@ -1467,7 +1544,7 @@
 
       if (!Array.isArray(parsed.ownedCards) && Array.isArray(parsed.cards)) {
         const earnedPoints = calculateEarnedPoints(loaded) || Number(parsed.points) || 0;
-        const safeLegacyCards = clamp(parsed.cards.length, 0, CREATURE_CARD_TEMPLATES.length);
+        const safeLegacyCards = clamp(parsed.cards.length, 0, ACTIVE_CREATURE_CARD_TEMPLATES.length);
         loaded.ownedCards = Array.from({ length: safeLegacyCards }, (_value, index) => ({
           index,
           purchasedAt: Date.now() + index
@@ -1784,8 +1861,9 @@
     const masteredCount = WORDS.filter((word) => state.progress[word].mastered).length;
     const ownedCount = state.ownedCards.length;
     const availableCount = getAvailableCardIndexes().length;
-    const nextPack = getNextLockedPack();
     const currentPackProgress = getCurrentPackProgress();
+    const unlockedCount = (state.unlockedPackIds || []).length;
+    const spareUnlocks = Math.max(0, getPackUnlockSlots(state) - unlockedCount);
 
     elements.pointsTotal.textContent = state.points;
     elements.masteredTotal.textContent = masteredCount;
@@ -1793,12 +1871,15 @@
     elements.battlePointsTotal.textContent = Number(state.battlePoints || 0);
     elements.battlePointNextText.textContent = `${getCorrectSpellingsUntilBattlePoint()} correct to next battle point`;
     const highestLevel = getUnlockedLevels(state).slice(-1)[0] || "—";
-    elements.wordLevelBadge.textContent = state.selectedLevel ? `Level ${highestLevel} · ${WORDS.length} words active` : "Choose a level";
-    elements.shopOpenTotal.textContent = `${availableCount}/${CREATURE_CARD_TEMPLATES.length}`;
+    elements.wordLevelBadge.textContent = state.selectedLevel ? `Level ${state.selectedLevel} · ${WORDS.length} words active` : "Choose a level";
+    elements.shopOpenTotal.textContent = `${availableCount}/${ACTIVE_CREATURE_CARD_TEMPLATES.length}`;
 
-    if (!nextPack) {
+    if (unlockedCount >= ACTIVE_CARD_PACKS.length) {
       elements.nextShopText.textContent = "All packs unlocked";
       elements.shopProgress.style.width = "100%";
+    } else if (spareUnlocks > 0) {
+      elements.nextShopText.textContent = `${spareUnlocks} pack unlock ready`;
+      elements.shopProgress.style.width = `${(unlockedCount / ACTIVE_CARD_PACKS.length) * 100}%`;
     } else {
       elements.nextShopText.textContent = `${currentPackProgress.owned} / ${currentPackProgress.target} in ${currentPackProgress.pack.shortName}`;
       elements.shopProgress.style.width = `${currentPackProgress.target === 0 ? 100 : (currentPackProgress.owned / currentPackProgress.target) * 100}%`;
@@ -1817,25 +1898,19 @@
   }
 
   function renderShop() {
-    const availableIndexes = new Set(getAvailableCardIndexes());
-    const nextPack = getNextLockedPack();
+    const availableIndexes = getAvailableCardIndexes();
     const ownedSet = new Set(state.ownedCards.map((card) => card.index));
+    const spareUnlocks = Math.max(0, getPackUnlockSlots(state) - (state.unlockedPackIds || []).length);
+    const lockedCount = ACTIVE_CARD_PACKS.filter((pack) => !isPackUnlocked(pack.id)).length;
 
     elements.shopGrid.innerHTML = "";
-    elements.shopStatusBadge.textContent = `${availableIndexes.size} cards available`;
+    elements.shopStatusBadge.textContent = `${availableIndexes.length} cards available`;
+    elements.shopMessage.textContent = lockedCount === 0
+      ? "All packs are unlocked."
+      : (spareUnlocks > 0 ? `You can unlock ${spareUnlocks} more pack${spareUnlocks === 1 ? "" : "s"}.` : "Only cards from unlocked packs appear in the shop.");
 
-    if (nextPack) {
-      const progress = getCurrentPackProgress();
-      const remaining = Math.max(0, progress.target - progress.owned);
-      elements.shopMessage.textContent = remaining === 1
-        ? `Buy 1 more card from ${progress.pack.name} to unlock ${nextPack.name}.`
-        : `Buy ${remaining} more cards from ${progress.pack.name} to unlock ${nextPack.name}.`;
-    } else {
-      elements.shopMessage.textContent = "All card packs are unlocked.";
-    }
-
-    CREATURE_CARD_TEMPLATES.forEach((template, index) => {
-      const released = availableIndexes.has(index);
+    for (const index of availableIndexes) {
+      const template = ACTIVE_CREATURE_CARD_TEMPLATES[index];
       const owned = ownedSet.has(index);
       const cardCost = getCardCost(index);
       const affordable = state.points >= cardCost;
@@ -1843,18 +1918,16 @@
       const article = node.querySelector(".monster-card");
       const button = node.querySelector("button");
 
-      if (released && owned) {
-        populateRevealedCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`, cardCost);
+      if (owned) {
+        populateRevealedCardNode(node, template, `Card ${index + 1} of ${ACTIVE_CREATURE_CARD_TEMPLATES.length}`, cardCost);
         article.classList.add("is-owned");
         if (index === lastPurchasedIndex) {
           article.classList.add("is-flipping");
-          window.setTimeout(() => {
-            lastPurchasedIndex = null;
-          }, 950);
+          window.setTimeout(() => { lastPurchasedIndex = null; }, 950);
         }
         button.textContent = "Owned";
         button.disabled = true;
-      } else if (released) {
+      } else {
         populateMysteryCardNode(node, template, `${getPackById(template.packId).shortName} pack`, cardCost);
         article.classList.add("is-mystery");
         button.dataset.cardIndex = String(index);
@@ -1866,15 +1939,10 @@
           button.disabled = true;
           article.classList.add("is-unaffordable");
         }
-      } else {
-        populateLockedCardNode(node, template);
-        article.classList.add("is-locked");
-        button.textContent = "Pack locked";
-        button.disabled = true;
       }
 
       elements.shopGrid.appendChild(node);
-    });
+    }
   }
 
   function renderCollection() {
@@ -1890,14 +1958,14 @@
       return;
     }
 
-    const latestTemplate = CREATURE_CARD_TEMPLATES[state.ownedCards[state.ownedCards.length - 1].index];
+    const latestTemplate = ACTIVE_CREATURE_CARD_TEMPLATES[state.ownedCards[state.ownedCards.length - 1].index];
     elements.collectionBadge.textContent = `Latest: ${latestTemplate.name}`;
 
     state.ownedCards
       .slice()
       .sort((a, b) => b.purchasedAt - a.purchasedAt)
       .forEach((ownedCard) => {
-        const template = CREATURE_CARD_TEMPLATES[ownedCard.index];
+        const template = ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index];
         const node = elements.collectionCardTemplate.content.cloneNode(true);
         populateRevealedCardNode(node, template, `Owned · Card ${ownedCard.index + 1}`, getCardCost(ownedCard.index));
         node.querySelector(".monster-card__cost").textContent = "Owned";
@@ -1909,37 +1977,39 @@
 
   function populateRevealedCardNode(node, template, metaText, cardCost) {
     const image = node.querySelector(".monster-card__image");
+    const rarity = getRarityForCost(cardCost);
     image.src = template.art;
     image.alt = `${template.name} card artwork`;
     image.loading = "lazy";
 
-    node.querySelector(".monster-card__art-badge").textContent = template.rarity;
+    node.querySelector(".monster-card__art-badge").textContent = rarity;
     node.querySelector(".monster-card__tagline").textContent = template.tagline;
     node.querySelector(".monster-card__type").textContent = template.type;
-    node.querySelector(".monster-card__rarity-pill").textContent = template.rarity;
+    node.querySelector(".monster-card__rarity-pill").textContent = rarity;
     node.querySelector(".monster-card__title").textContent = template.name;
     node.querySelector(".monster-card__description").textContent = template.description;
     node.querySelector(".monster-card__attack").textContent = template.attack;
     node.querySelector(".monster-card__power").textContent = template.power;
-    node.querySelector(".monster-card__rarity-short").textContent = shortRarity(template.rarity);
+    node.querySelector(".monster-card__rarity-short").textContent = shortRarity(rarity);
     node.querySelector(".monster-card__meta").textContent = metaText;
     node.querySelector(".monster-card__cost").textContent = `${cardCost} pts`;
   }
 
   function populateMysteryCardNode(node, template, metaText, cardCost) {
     const image = node.querySelector(".monster-card__image");
+    const rarity = getRarityForCost(cardCost);
     image.removeAttribute("src");
     image.alt = "";
 
     node.querySelector(".monster-card__art-badge").textContent = "Mystery";
     node.querySelector(".monster-card__tagline").textContent = "Buy to reveal";
-    node.querySelector(".monster-card__type").textContent = "Hidden";
-    node.querySelector(".monster-card__rarity-pill").textContent = "???";
+    node.querySelector(".monster-card__type").textContent = template.type;
+    node.querySelector(".monster-card__rarity-pill").textContent = rarity;
     node.querySelector(".monster-card__title").textContent = template.name;
-    node.querySelector(".monster-card__description").textContent = "A mystery card. Buy it to flip the card and reveal the artwork, type, rarity, ATK, and PWR.";
+    node.querySelector(".monster-card__description").textContent = "A mystery card. Buy it to reveal the artwork.";
     node.querySelector(".monster-card__attack").textContent = "?";
     node.querySelector(".monster-card__power").textContent = "?";
-    node.querySelector(".monster-card__rarity-short").textContent = "?";
+    node.querySelector(".monster-card__rarity-short").textContent = shortRarity(rarity);
     node.querySelector(".monster-card__meta").textContent = metaText;
     node.querySelector(".monster-card__cost").textContent = `${cardCost} pts`;
   }
@@ -2006,18 +2076,26 @@ function handleShopClick(event) {
     renderPacks();
     renderBattlePanel();
 
-    const template = CREATURE_CARD_TEMPLATES[cardIndex];
+    const template = ACTIVE_CREATURE_CARD_TEMPLATES[cardIndex];
     const unlockText = unlockedPack ? ` ${unlockedPack.name} just unlocked!` : "";
     setShopFlash(`Bought ${template.name} for ${cardCost} ${pluralise(cardCost, "point")}.${unlockText}`, "success");
   }
 
   function getCardCost(cardIndex) {
-    const template = CREATURE_CARD_TEMPLATES[cardIndex];
-    if (template && Number.isFinite(template.price)) {
-      return template.price;
-    }
+    const template = ACTIVE_CREATURE_CARD_TEMPLATES[cardIndex];
+    if (!template) return 50;
+    const packIndexes = getCardsInPack(template.packId);
+    const position = packIndexes.indexOf(cardIndex);
+    if (position < 0) return 50;
+    if (position < 3) return 5;
+    if (position < 6) return 10;
+    if (position < 9) return 20;
+    if (position < 12) return 40;
+    return 50;
+  }
 
-    return (Math.floor(cardIndex / CARD_PRICE_GROUP_SIZE) + 1) * CARD_PRICE_STEP;
+  function getRarityForCost(cost) {
+    return ({ 5: "Common", 10: "Uncommon", 20: "Rare", 40: "Epic", 50: "Legendary" }[cost] || "Common");
   }
 
   function calculateOwnedCardCost(cardCount) {
@@ -2030,7 +2108,7 @@ function handleShopClick(event) {
 
   function getAvailableCardIndexes() {
     const unlocked = new Set(state.unlockedPackIds || [INITIAL_UNLOCKED_PACK_ID]);
-    return CREATURE_CARD_TEMPLATES
+    return ACTIVE_CREATURE_CARD_TEMPLATES
       .map((card, index) => unlocked.has(card.packId) ? index : null)
       .filter((index) => index !== null);
   }
@@ -2040,21 +2118,21 @@ function handleShopClick(event) {
   }
 
   function getPackById(packId) {
-    return CARD_PACKS.find((pack) => pack.id === packId);
+    return ACTIVE_CARD_PACKS.find((pack) => pack.id === packId);
   }
 
   function getNextLockedPack() {
-    return CARD_PACKS.find((pack) => !isPackUnlocked(pack.id)) || null;
+    return ACTIVE_CARD_PACKS.find((pack) => !isPackUnlocked(pack.id)) || null;
   }
 
   function getLastUnlockedPack() {
     const unlocked = state.unlockedPackIds || [INITIAL_UNLOCKED_PACK_ID];
     const lastUnlockedId = unlocked[unlocked.length - 1] || INITIAL_UNLOCKED_PACK_ID;
-    return getPackById(lastUnlockedId) || CARD_PACKS[0];
+    return getPackById(lastUnlockedId) || ACTIVE_CARD_PACKS[0];
   }
 
   function getCardsInPack(packId) {
-    return CREATURE_CARD_TEMPLATES
+    return ACTIVE_CREATURE_CARD_TEMPLATES
       .map((card, index) => card.packId === packId ? index : null)
       .filter((index) => index !== null);
   }
@@ -2063,23 +2141,39 @@ function handleShopClick(event) {
     return new Set(state.ownedCards.map((card) => card.index));
   }
 
-  function getCurrentPackProgress() {
-    const currentPack = getLastUnlockedPack();
-    const packCards = getCardsInPack(currentPack.id);
-    const ownedIndexes = getOwnedIndexes();
-    const ownedInPack = packCards.filter((index) => ownedIndexes.has(index)).length;
-    const target = Math.max(0, packCards.length - PACK_UNLOCK_REMAINING_TRIGGER);
+  function getOwnedCountForPack(targetState, packId) {
+    const ownedIndexes = new Set((targetState.ownedCards || []).map((card) => card.index));
+    return getCardsInPack(packId).filter((index) => ownedIndexes.has(index)).length;
+  }
 
-    return {
-      pack: currentPack,
-      owned: clamp(ownedInPack, 0, target),
-      target,
-      total: packCards.length
-    };
+  function getPackUnlockThreshold(packId) {
+    return Math.max(1, Math.ceil(getCardsInPack(packId).length / 2));
+  }
+
+  function getCurrentPackProgress() {
+    const unlocked = state.unlockedPackIds || [INITIAL_UNLOCKED_PACK_ID];
+    const candidateId = unlocked.find((packId) => getOwnedCountForPack(state, packId) < getPackUnlockThreshold(packId)) || unlocked[0] || INITIAL_UNLOCKED_PACK_ID;
+    const currentPack = getPackById(candidateId) || ACTIVE_CARD_PACKS[0];
+    const owned = getOwnedCountForPack(state, currentPack.id);
+    const target = getPackUnlockThreshold(currentPack.id);
+    return { pack: currentPack, owned: clamp(owned, 0, target), target, total: getCardsInPack(currentPack.id).length };
+  }
+
+  function getPackUnlockSlots(targetState) {
+    const unlocked = Array.isArray(targetState.unlockedPackIds) && targetState.unlockedPackIds.length
+      ? targetState.unlockedPackIds
+      : [INITIAL_UNLOCKED_PACK_ID];
+    let slots = 1;
+    unlocked.forEach((packId) => {
+      if (getOwnedCountForPack(targetState, packId) >= getPackUnlockThreshold(packId)) {
+        slots += 1;
+      }
+    });
+    return Math.min(slots, ACTIVE_CARD_PACKS.length);
   }
 
   function ensurePackUnlockState(targetState) {
-    const validPackIds = new Set(CARD_PACKS.map((pack) => pack.id));
+    const validPackIds = new Set(ACTIVE_CARD_PACKS.map((pack) => pack.id));
     targetState.unlockedPackIds = Array.isArray(targetState.unlockedPackIds)
       ? targetState.unlockedPackIds.filter((packId) => validPackIds.has(packId))
       : [];
@@ -2087,84 +2181,57 @@ function handleShopClick(event) {
     if (targetState.unlockedPackIds.length === 0) {
       targetState.unlockedPackIds = [INITIAL_UNLOCKED_PACK_ID];
     }
-
-    const ownedIndexes = new Set((targetState.ownedCards || []).map((card) => card.index));
-    for (const cardIndex of ownedIndexes) {
-      const packId = CREATURE_CARD_TEMPLATES[cardIndex] && CREATURE_CARD_TEMPLATES[cardIndex].packId;
-      const packIndex = CARD_PACKS.findIndex((pack) => pack.id === packId);
-      for (let index = 0; index <= packIndex; index += 1) {
-        const unlockId = CARD_PACKS[index].id;
-        if (!targetState.unlockedPackIds.includes(unlockId)) {
-          targetState.unlockedPackIds.push(unlockId);
-        }
-      }
-    }
-
-    unlockEligiblePacks(targetState);
   }
 
-  function unlockEligiblePacks(targetState) {
-    // This function may run while the main `state` variable is still being
-    // created, so it must only use the state object passed in here.
-    let newlyUnlockedPack = null;
-    const validPackIds = new Set(CARD_PACKS.map((pack) => pack.id));
-    const ownedIndexes = new Set((targetState.ownedCards || []).map((card) => card.index));
+  function unlockEligiblePacks() {
+    return null;
+  }
 
-    targetState.unlockedPackIds = Array.isArray(targetState.unlockedPackIds)
-      ? targetState.unlockedPackIds.filter((packId) => validPackIds.has(packId))
-      : [];
-
-    if (targetState.unlockedPackIds.length === 0) {
-      targetState.unlockedPackIds = [INITIAL_UNLOCKED_PACK_ID];
+  async function unlockPack(packId) {
+    if (!currentUser) {
+      setShopFlash("Create an account or sign in before unlocking more packs.", "info");
+      return;
     }
-
-    let shouldCheckAgain = true;
-    while (shouldCheckAgain) {
-      shouldCheckAgain = false;
-      const nextPack = CARD_PACKS.find((pack) => !targetState.unlockedPackIds.includes(pack.id));
-      if (!nextPack) {
-        break;
-      }
-
-      const currentPackId = targetState.unlockedPackIds[targetState.unlockedPackIds.length - 1] || INITIAL_UNLOCKED_PACK_ID;
-      const currentPack = getPackById(currentPackId) || CARD_PACKS[0];
-      const cardIndexesInCurrentPack = CREATURE_CARD_TEMPLATES
-        .map((card, index) => card.packId === currentPack.id ? index : null)
-        .filter((index) => index !== null);
-      const ownedInCurrentPack = cardIndexesInCurrentPack.filter((index) => ownedIndexes.has(index)).length;
-      const targetOwned = Math.max(0, cardIndexesInCurrentPack.length - PACK_UNLOCK_REMAINING_TRIGGER);
-
-      if (ownedInCurrentPack >= targetOwned) {
-        targetState.unlockedPackIds.push(nextPack.id);
-        newlyUnlockedPack = nextPack;
-        shouldCheckAgain = true;
-      }
+    if (!packId || isPackUnlocked(packId)) return;
+    const spareUnlocks = getPackUnlockSlots(state) - (state.unlockedPackIds || []).length;
+    if (spareUnlocks <= 0) {
+      setShopFlash("Own at least half the cards in an unlocked pack to unlock another pack.", "info");
+      return;
     }
+    state.unlockedPackIds.push(packId);
+    saveState();
+    renderStats();
+    renderShop();
+    renderPacks();
+    setShopFlash(`Unlocked ${getPackById(packId).name}.`, "success");
+  }
 
-    return newlyUnlockedPack;
+  function handlePackClick(event) {
+    const button = event.target.closest("button[data-pack-id]");
+    if (!button) return;
+    unlockPack(button.dataset.packId);
   }
 
   function renderPacks() {
-    if (!elements.packGrid) {
-      return;
-    }
-
+    if (!elements.packGrid) return;
     elements.packGrid.innerHTML = "";
     const unlocked = new Set(state.unlockedPackIds || []);
-    const ownedIndexes = getOwnedIndexes();
+    const spareUnlocks = Math.max(0, getPackUnlockSlots(state) - unlocked.size);
+    elements.packStatusBadge.textContent = `${unlocked.size}/${ACTIVE_CARD_PACKS.length} unlocked`;
 
-    elements.packStatusBadge.textContent = `${unlocked.size}/${CARD_PACKS.length} packs unlocked`;
-
-    for (const pack of CARD_PACKS) {
+    for (const pack of ACTIVE_CARD_PACKS) {
       const cardIndexes = getCardsInPack(pack.id);
-      const ownedCount = cardIndexes.filter((index) => ownedIndexes.has(index)).length;
+      const ownedCount = cardIndexes.filter((index) => getOwnedIndexes().has(index)).length;
+      const isUnlocked = unlocked.has(pack.id);
+      const canUnlock = !isUnlocked && spareUnlocks > 0 && Boolean(currentUser);
       const packNode = document.createElement("article");
-      packNode.className = unlocked.has(pack.id) ? "pack-tile is-unlocked" : "pack-tile is-locked";
+      packNode.className = isUnlocked ? "pack-tile is-unlocked" : "pack-tile is-locked";
       packNode.innerHTML = `
         <h3>${pack.name}</h3>
         <p>${pack.description}</p>
         <strong>${ownedCount}/${cardIndexes.length} cards owned</strong>
-        <span>${unlocked.has(pack.id) ? "Unlocked" : pack.unlockHint}</span>
+        <span>${isUnlocked ? "Unlocked" : (currentUser ? "Locked" : "Sign in to unlock")}</span>
+        ${canUnlock ? `<button class="primary-button" type="button" data-pack-id="${pack.id}">Unlock this pack</button>` : ""}
       `;
       elements.packGrid.appendChild(packNode);
     }
@@ -2176,7 +2243,7 @@ function handleShopClick(event) {
       .filter((card) => card && typeof card === "object")
       .map((card) => ({ index: Number(card.index), purchasedAt: Number(card.purchasedAt) || Date.now() }))
       .filter((card) => {
-        if (!Number.isInteger(card.index) || card.index < 0 || card.index >= CREATURE_CARD_TEMPLATES.length || seen.has(card.index)) {
+        if (!Number.isInteger(card.index) || card.index < 0 || card.index >= ACTIVE_CREATURE_CARD_TEMPLATES.length || seen.has(card.index)) {
           return false;
         }
         seen.add(card.index);
@@ -2311,9 +2378,11 @@ function scoreWord(word) {
   function renderAuthPanel() {
     if (!currentUser) {
       elements.authStatus.textContent = supabaseClient
-        ? "Not signed in. Sign in to save progress and use the battle arena."
+        ? "Create an account or sign in with a username and password."
         : "Supabase is not configured yet. Progress is saved on this device only.";
       elements.signOutButton.hidden = true;
+      elements.signInButton.hidden = false;
+      elements.signUpButton.hidden = false;
       elements.signInButton.disabled = !supabaseClient;
       elements.signUpButton.disabled = !supabaseClient;
       elements.authEmail.disabled = !supabaseClient;
@@ -2321,39 +2390,65 @@ function scoreWord(word) {
       return;
     }
 
-    elements.authStatus.textContent = `Signed in as ${currentUser.email || "player"}. Progress sync is on.`;
+    elements.authStatus.textContent = `Signed in as ${getCurrentUsername()}.`;
     elements.signOutButton.hidden = false;
-    elements.signInButton.disabled = true;
-    elements.signUpButton.disabled = true;
-    elements.authEmail.disabled = true;
-    elements.authPassword.disabled = true;
+    elements.signInButton.hidden = true;
+    elements.signUpButton.hidden = true;
+    elements.authEmail.disabled = false;
+    elements.authPassword.disabled = false;
+  }
+
+  function makeUsernameEmail(username) {
+    const clean = username.replace(/[^a-z0-9._-]/gi, "").toLowerCase();
+    return `${clean}@spellbattlecards.example`;
+  }
+
+  function getUsernameInput() {
+    return String(elements.authEmail.value || "").trim().toLowerCase();
+  }
+
+  function getCurrentUsername() {
+    if (!currentUser) return "player";
+    return (currentUser.user_metadata && currentUser.user_metadata.username) ||
+      (currentUser.email || "player").split("@")[0] ||
+      "player";
   }
 
   async function signUpUser() {
     if (!supabaseClient) return;
-    const email = elements.authEmail.value.trim();
+    const username = getUsernameInput();
     const password = elements.authPassword.value;
-    if (!email || !password) {
-      elements.authStatus.textContent = "Enter an email and password first.";
+    if (!username || !password) {
+      elements.authStatus.textContent = "Enter a username and password first.";
       return;
     }
 
-    const { error } = await supabaseClient.auth.signUp({ email, password });
-    elements.authStatus.textContent = error
-      ? `Sign-up error: ${error.message}`
-      : "Account created. Check your email if Supabase asks for confirmation, then sign in.";
+    const { data, error } = await supabaseClient.auth.signUp({
+      email: makeUsernameEmail(username),
+      password,
+      options: { data: { username } }
+    });
+    if (error) {
+      elements.authStatus.textContent = `Sign-up error: ${error.message}`;
+      return;
+    }
+
+    if (!data.session) {
+      await supabaseClient.auth.signInWithPassword({ email: makeUsernameEmail(username), password });
+    }
+    elements.authStatus.textContent = "Account created.";
   }
 
   async function signInUser() {
     if (!supabaseClient) return;
-    const email = elements.authEmail.value.trim();
+    const username = getUsernameInput();
     const password = elements.authPassword.value;
-    if (!email || !password) {
-      elements.authStatus.textContent = "Enter an email and password first.";
+    if (!username || !password) {
+      elements.authStatus.textContent = "Enter a username and password first.";
       return;
     }
 
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    const { error } = await supabaseClient.auth.signInWithPassword({ email: makeUsernameEmail(username), password });
     elements.authStatus.textContent = error ? `Sign-in error: ${error.message}` : "Signed in.";
   }
 
@@ -2364,6 +2459,7 @@ function scoreWord(word) {
     currentUser = null;
     renderAuthPanel();
     renderBattlePanel();
+    renderPacks();
   }
 
   async function ensureProfile() {
@@ -2374,7 +2470,8 @@ function scoreWord(word) {
       .upsert({
         user_id: currentUser.id,
         email: currentUser.email || null,
-        display_name: (currentUser.email || "Player").split("@")[0],
+        display_name: getCurrentUsername(),
+        username: getCurrentUsername(),
         starting_level: state.selectedLevel || null,
         updated_at: new Date().toISOString()
       }, { onConflict: "user_id" });
@@ -2495,7 +2592,7 @@ function scoreWord(word) {
     if (!elements.battlePanel) return;
 
     const ownedCards = state.ownedCards
-      .map((ownedCard) => ({ ...ownedCard, template: CREATURE_CARD_TEMPLATES[ownedCard.index] }))
+      .map((ownedCard) => ({ ...ownedCard, template: ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index] }))
       .filter((ownedCard) => ownedCard.template);
 
     elements.battleCardSelect.innerHTML = "";
@@ -2549,7 +2646,7 @@ function scoreWord(word) {
     renderBattleGrid(0.5);
 
     const attackStrength = await getOrCreateBattleStrength(cardIndex);
-    const displayName = (currentUser.email || "Player").split("@")[0];
+    const displayName = getCurrentUsername();
 
     const { data: waitingBattle } = await supabaseClient
       .from("battle_rooms")
@@ -2607,7 +2704,7 @@ function scoreWord(word) {
 
     spendBattlePoint();
     currentBattle = createdBattle;
-    elements.battleStatus.textContent = `Waiting for an opponent. ${CREATURE_CARD_TEMPLATES[cardIndex].name} strength: ${attackStrength}.`;
+    elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[cardIndex].name} strength: ${attackStrength}.`;
     elements.battleOpponent.textContent = "";
     startBattlePolling(createdBattle.id);
   }
@@ -2684,8 +2781,8 @@ function scoreWord(word) {
       return;
     }
 
-    const myCard = CREATURE_CARD_TEMPLATES[perspective.myCardIndex];
-    const opponentCard = CREATURE_CARD_TEMPLATES[perspective.opponentCardIndex];
+    const myCard = ACTIVE_CREATURE_CARD_TEMPLATES[perspective.myCardIndex];
+    const opponentCard = ACTIVE_CREATURE_CARD_TEMPLATES[perspective.opponentCardIndex];
     elements.battleStatus.textContent = `${myCard.name}: ${perspective.myAttack}`;
     elements.battleOpponent.textContent = `${perspective.opponentName || "Opponent"}: ${opponentCard.name}, ${perspective.opponentAttack}`;
     renderBattleGrid(perspective.userPercent);
