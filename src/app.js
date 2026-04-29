@@ -1,20 +1,20 @@
 (function () {
   "use strict";
 
-  const WORD_BANKS = {
-    normal: window.SPELLING_WORDS || [],
-    hard: window.HARD_SPELLING_WORDS || []
-  };
-  const MODE_STORAGE_KEY = "dino-speller-mode";
-  const DEFAULT_MODE = "normal";
-  let currentMode = getInitialMode();
-  let WORDS = WORD_BANKS[currentMode] || WORD_BANKS.normal;
+  let WORD_ENTRIES = normaliseWordEntries(window.GRADED_SPELLING_WORDS || []);
+  let WORD_ENTRIES_BY_LEVEL = groupWordEntriesByLevel(WORD_ENTRIES);
+  let WORDS = [];
 
-  const BASE_STORAGE_KEY = "dino-speller-state-v10";
+  const BASE_STORAGE_KEY = "spell-battle-cards-state-v11";
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
   const DEFAULT_VOICE_NAME = "Google UK English Male";
   const DEFAULT_VOICE_LANG = "en-GB";
   const LEGACY_STORAGE_KEYS = [
+    "dino-speller-state-v10-normal",
+    "dino-speller-state-v10-hard",
+    "dino-speller-state-v9",
+    "dino-speller-state-v8",
+    "dino-speller-state-v7",
     "dino-speller-state-v6",
     "dino-speller-state-v5",
     "dino-speller-state-v4",
@@ -25,6 +25,9 @@
 
   const MASTERY_STREAK = 3;
   const BATTLE_POINT_EVERY = 10;
+  const LEVEL_UNLOCK_REMAINING = 10;
+  const MIN_LEVEL = 1;
+  const MAX_LEVEL = 20;
   const CARD_PRICE_STEP = 5;
   const CARD_PRICE_GROUP_SIZE = 5;
   const INITIAL_UNLOCKED_PACK_ID = "prehistoric";
@@ -1125,8 +1128,10 @@
 
   const elements = {
     resetButton: document.querySelector("#resetButton"),
-    modeSelect: document.querySelector("#modeSelect"),
-    modeWordTotal: document.querySelector("#modeWordTotal"),
+    levelPanel: document.querySelector("#levelPanel"),
+    levelGrid: document.querySelector("#levelGrid"),
+    levelStatus: document.querySelector("#levelStatus"),
+    wordLevelBadge: document.querySelector("#wordLevelBadge"),
     refreshButton: document.querySelector("#refreshButton"),
     restingPanel: document.querySelector("#restingPanel"),
     practicePanel: document.querySelector("#practicePanel"),
@@ -1137,6 +1142,7 @@
     streakEggs: document.querySelector("#streakEggs"),
     speakButton: document.querySelector("#speakButton"),
     hintButton: document.querySelector("#hintButton"),
+    revealWordButton: document.querySelector("#revealWordButton"),
     skipButton: document.querySelector("#skipButton"),
     hintText: document.querySelector("#hintText"),
     voiceControl: document.querySelector("#voiceControl"),
@@ -1196,17 +1202,18 @@
     elements.answerInput.addEventListener("keydown", handleAnswerKeydown);
     elements.speakButton.addEventListener("click", speakCurrentWord);
     elements.hintButton.addEventListener("click", showHint);
+    elements.revealWordButton.addEventListener("click", revealCurrentWord);
     elements.skipButton.addEventListener("click", skipCurrentWord);
     elements.resetButton.addEventListener("click", resetProgress);
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
-    elements.modeSelect.addEventListener("change", handleModeChange);
+    elements.levelGrid.addEventListener("click", handleLevelChoice);
     elements.signInButton.addEventListener("click", signInUser);
     elements.signUpButton.addEventListener("click", signUpUser);
     elements.signOutButton.addEventListener("click", signOutUser);
     elements.enterBattleButton.addEventListener("click", enterBattleArena);
 
-    setupModeSelector();
+    renderLevelSelector();
     setupVoicePicker();
     initialiseSupabase();
     selectNextWord();
@@ -1218,45 +1225,145 @@
     renderDueBadge();
   }
 
-  function getInitialMode() {
-    const savedMode = window.localStorage.getItem(MODE_STORAGE_KEY);
-    return WORD_BANKS[savedMode] ? savedMode : DEFAULT_MODE;
-  }
-
   function getStorageKey() {
-    return `${BASE_STORAGE_KEY}-${currentMode}`;
+    return BASE_STORAGE_KEY;
   }
 
-  function getModeLabel(mode) {
-    return mode === "hard" ? "Hard mode" : "Normal mode";
+  function normaliseWordEntries(entries) {
+    return entries
+      .map((entry, index) => {
+        const word = String(entry.word || entry.Word || "").trim().toLowerCase();
+        const level = Number(entry.level || entry.Level);
+        if (!word || !Number.isInteger(level)) {
+          return null;
+        }
+
+        return {
+          word,
+          level: clamp(level, MIN_LEVEL, MAX_LEVEL),
+          band: String(entry.band || entry.Band || "").trim(),
+          sentence: String(entry.sentence || entry.simple_sentence || entry.simpleSentence || "").trim() || `Please spell the word ${word}.`,
+          sortOrder: Number(entry.sort_order || entry.sortOrder || entry.No || index + 1) || index + 1
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.level - b.level || a.sortOrder - b.sortOrder || a.word.localeCompare(b.word));
   }
 
-  function setupModeSelector() {
-    elements.modeSelect.value = currentMode;
-    elements.modeWordTotal.textContent = `${getModeLabel(currentMode)} · ${WORDS.length} words`;
+  function groupWordEntriesByLevel(entries) {
+    return entries.reduce((acc, entry) => {
+      if (!acc[entry.level]) {
+        acc[entry.level] = [];
+      }
+      acc[entry.level].push(entry);
+      return acc;
+    }, {});
   }
 
-  function handleModeChange() {
-    const nextMode = WORD_BANKS[elements.modeSelect.value] ? elements.modeSelect.value : DEFAULT_MODE;
-    if (nextMode === currentMode) {
+  function setWordEntries(entries) {
+    WORD_ENTRIES = normaliseWordEntries(entries);
+    WORD_ENTRIES_BY_LEVEL = groupWordEntriesByLevel(WORD_ENTRIES);
+    refreshActiveWords(state);
+    ensureProgressForActiveWords(state);
+    renderLevelSelector();
+  }
+
+  function getLevelEntries(level) {
+    return WORD_ENTRIES_BY_LEVEL[level] || [];
+  }
+
+  function getEntryForWord(word) {
+    return WORD_ENTRIES.find((entry) => entry.word === word) || null;
+  }
+
+  function getUnlockedLevels(targetState) {
+    if (!targetState.selectedLevel) {
+      return [];
+    }
+
+    const levels = Array.isArray(targetState.unlockedLevels) && targetState.unlockedLevels.length
+      ? targetState.unlockedLevels
+      : [targetState.selectedLevel];
+
+    return Array.from(new Set(levels.map(Number)))
+      .filter((level) => Number.isInteger(level) && level >= MIN_LEVEL && level <= MAX_LEVEL)
+      .sort((a, b) => a - b);
+  }
+
+  function getActiveWordEntries(targetState) {
+    const unlockedLevels = new Set(getUnlockedLevels(targetState));
+    return WORD_ENTRIES.filter((entry) => unlockedLevels.has(entry.level));
+  }
+
+  function refreshActiveWords(targetState) {
+    WORDS = getActiveWordEntries(targetState).map((entry) => entry.word);
+  }
+
+  function ensureProgressForActiveWords(targetState) {
+    refreshActiveWords(targetState);
+    for (const word of WORDS) {
+      if (!targetState.progress[word]) {
+        targetState.progress[word] = makeBlankProgress(word);
+      }
+    }
+  }
+
+  function renderLevelSelector() {
+    if (!elements.levelPanel || !elements.levelGrid) {
       return;
     }
 
-    currentMode = nextMode;
-    WORDS = WORD_BANKS[currentMode] || WORD_BANKS.normal;
-    window.localStorage.setItem(MODE_STORAGE_KEY, currentMode);
-    state = loadState();
+    const hasLevel = Boolean(state && state.selectedLevel);
+    elements.levelPanel.hidden = hasLevel;
+    elements.levelGrid.innerHTML = "";
+
+    if (hasLevel) {
+      elements.levelStatus.textContent = `Starting level ${state.selectedLevel}. Levels unlocked: ${getUnlockedLevels(state).join(", ")}.`;
+      return;
+    }
+
+    elements.levelStatus.textContent = currentUser
+      ? "Choose the level that feels right. You can see examples before starting."
+      : "Choose a starting level. Sign in to save it online.";
+
+    for (let level = MIN_LEVEL; level <= MAX_LEVEL; level += 1) {
+      const examples = getLevelEntries(level).slice(0, 10).map((entry) => entry.word);
+      const tile = document.createElement("article");
+      tile.className = "level-tile";
+      tile.innerHTML = `
+        <h3>Level ${level}</h3>
+        <p>${examples.join(", ") || "Words loading…"}</p>
+        <button class="primary-button" type="button" data-level="${level}">Start level ${level}</button>
+      `;
+      elements.levelGrid.appendChild(tile);
+    }
+  }
+
+  function handleLevelChoice(event) {
+    const button = event.target.closest("button[data-level]");
+    if (!button) {
+      return;
+    }
+
+    const level = Number(button.dataset.level);
+    if (!Number.isInteger(level) || level < MIN_LEVEL || level > MAX_LEVEL) {
+      return;
+    }
+
+    chooseStartingLevel(level);
+  }
+
+  function chooseStartingLevel(level) {
+    state = makeInitialState(level);
     currentWord = null;
-    lastPurchasedIndex = null;
     clearAutoAdvance();
-    clearFeedback();
-    clearShopFlash();
+    saveState();
+    if (currentUser) {
+      ensureProfile();
+    }
+    renderLevelSelector();
     selectNextWord();
     renderStats();
-    renderShop();
-    renderCollection();
-    renderPacks();
-    renderBattlePanel();
   }
 
   function makeBlankProgress(word) {
@@ -1268,13 +1375,17 @@
       introduced: false,
       mastered: false,
       masteredAt: null,
-      lastAttemptAt: null
+      lastAttemptAt: null,
+      lastAttemptWasWrong: false
     };
   }
 
-  function makeInitialState() {
+  function makeInitialState(selectedLevel = null) {
+    const safeLevel = Number.isInteger(Number(selectedLevel)) ? clamp(Number(selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
     const initialState = {
-      version: 10,
+      version: 11,
+      selectedLevel: safeLevel,
+      unlockedLevels: safeLevel ? [safeLevel] : [],
       points: 0,
       lifetimePoints: 0,
       battlePoints: 0,
@@ -1283,13 +1394,16 @@
       unlockedPackIds: [INITIAL_UNLOCKED_PACK_ID],
       queue: [],
       turn: 0,
-      progress: WORDS.reduce((acc, word) => {
-        acc[word] = makeBlankProgress(word);
-        return acc;
-      }, {})
+      progress: {}
     };
 
-    fillQueueToSize(initialState, ACTIVE_WORD_TARGET);
+    if (safeLevel) {
+      ensureProgressForActiveWords(initialState);
+      fillQueueToSize(initialState, ACTIVE_WORD_TARGET);
+    } else {
+      refreshActiveWords(initialState);
+    }
+
     return initialState;
   }
 
@@ -1307,8 +1421,11 @@
 
     try {
       const parsed = JSON.parse(raw);
+      const selectedLevel = Number.isInteger(Number(parsed.selectedLevel)) ? clamp(Number(parsed.selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
       const loaded = {
-        version: 10,
+        version: 11,
+        selectedLevel,
+        unlockedLevels: Array.isArray(parsed.unlockedLevels) ? parsed.unlockedLevels : (selectedLevel ? [selectedLevel] : []),
         points: Number.isFinite(parsed.points) ? Math.max(0, parsed.points) : 0,
         lifetimePoints: Number.isFinite(parsed.lifetimePoints) ? Math.max(0, parsed.lifetimePoints) : 0,
         battlePoints: Number.isFinite(parsed.battlePoints) ? Math.max(0, parsed.battlePoints) : 0,
@@ -1320,33 +1437,37 @@
         progress: parsed.progress && typeof parsed.progress === "object" ? parsed.progress : {}
       };
 
-      const allowedWords = new Set(WORDS);
-      for (const word of Object.keys(loaded.progress)) {
-        if (!allowedWords.has(word)) {
-          delete loaded.progress[word];
+      if (!loaded.selectedLevel) {
+        loaded.queue = [];
+        loaded.progress = {};
+      } else {
+        loaded.unlockedLevels = getUnlockedLevels(loaded);
+        ensureProgressForActiveWords(loaded);
+
+        const allowedWords = new Set(WORDS);
+        for (const word of Object.keys(loaded.progress)) {
+          if (!allowedWords.has(word)) {
+            delete loaded.progress[word];
+          }
+        }
+
+        for (const word of WORDS) {
+          const savedProgress = loaded.progress[word] || {};
+          loaded.progress[word] = {
+            ...makeBlankProgress(word),
+            ...savedProgress,
+            word,
+            introduced: Boolean(savedProgress.introduced || savedProgress.mastered || Number(savedProgress.attempts || 0) > 0),
+            mastered: Boolean(savedProgress.mastered),
+            lastAttemptWasWrong: Boolean(savedProgress.lastAttemptWasWrong)
+          };
         }
       }
-
-      WORDS.forEach((word, index) => {
-        const savedProgress = loaded.progress[word] || {};
-        loaded.progress[word] = {
-          ...makeBlankProgress(word),
-          ...savedProgress,
-          word,
-          introduced: Boolean(
-            savedProgress.introduced ||
-            savedProgress.mastered ||
-            Number(savedProgress.attempts || 0) > 0 ||
-            index < ACTIVE_WORD_TARGET
-          ),
-          mastered: Boolean(savedProgress.mastered)
-        };
-      });
 
       if (!Array.isArray(parsed.ownedCards) && Array.isArray(parsed.cards)) {
         const earnedPoints = calculateEarnedPoints(loaded) || Number(parsed.points) || 0;
         const safeLegacyCards = clamp(parsed.cards.length, 0, CREATURE_CARD_TEMPLATES.length);
-        loaded.ownedCards = Array.from({ length: safeLegacyCards }, (_, index) => ({
+        loaded.ownedCards = Array.from({ length: safeLegacyCards }, (_value, index) => ({
           index,
           purchasedAt: Date.now() + index
         }));
@@ -1360,7 +1481,7 @@
       ensurePackUnlockState(loaded);
       cleanQueue(loaded);
 
-      if (loaded.queue.length === 0) {
+      if (loaded.selectedLevel && loaded.queue.length === 0) {
         for (const word of WORDS) {
           const progress = loaded.progress[word];
           if (progress.introduced && !progress.mastered) {
@@ -1383,7 +1504,7 @@
   }
 
   function resetProgress() {
-    if (!window.confirm(`Reset all ${getModeLabel(currentMode)} progress, points, and card purchases?`)) {
+    if (!window.confirm("Reset all progress, points, and card purchases?")) {
       return;
     }
 
@@ -1404,6 +1525,14 @@
 
   function selectNextWord() {
     clearAutoAdvance();
+    if (!state.selectedLevel) {
+      renderLevelSelector();
+      elements.practicePanel.hidden = true;
+      elements.restingPanel.hidden = false;
+      elements.nextDueText.textContent = "Choose a starting level to begin.";
+      renderDueBadge();
+      return;
+    }
     cleanQueue(state);
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     currentWord = state.queue[0] || null;
@@ -1431,7 +1560,9 @@
     const points = scoreWord(currentWord);
     const progress = state.progress[currentWord];
     elements.wordLength.textContent = `Word length: ${currentWord.length} letters · worth ${points} ${pluralise(points, "point")}`;
-    elements.contextClue.textContent = CONTEXT_CLUES[currentWord] || "";
+    const entry = getEntryForWord(currentWord);
+    elements.contextClue.textContent = entry ? `Level ${entry.level}${entry.band ? ` · ${entry.band}` : ""}` : (CONTEXT_CLUES[currentWord] || "");
+    elements.revealWordButton.disabled = !canRevealCurrentWord();
     renderStreak(progress.correctStreak || 0);
   }
 
@@ -1457,9 +1588,14 @@
   }
 
   function cleanQueue(targetState) {
+    ensureProgressForActiveWords(targetState);
+    const allowedWords = new Set(WORDS);
     const seen = new Set();
     targetState.queue = targetState.queue.filter((word) => {
       const progress = targetState.progress[word];
+      if (!allowedWords.has(word)) {
+        return false;
+      }
       if (!progress || progress.mastered || seen.has(word)) {
         return false;
       }
@@ -1482,6 +1618,7 @@
   }
 
   function introduceNextWord(targetState) {
+    ensureProgressForActiveWords(targetState);
     for (const word of WORDS) {
       const progress = targetState.progress[word];
       if (!progress || progress.mastered || progress.introduced) {
@@ -1557,6 +1694,7 @@
     const battleText = battlePointAward > 0 ? ` You earned ${battlePointAward} battle ${pluralise(battlePointAward, "point")}!` : "";
 
     progress.correctAttempts += 1;
+    progress.lastAttemptWasWrong = false;
     progress.correctStreak = Math.min(MASTERY_STREAK, Number(progress.correctStreak || 0) + 1);
     state.points += earnedPoints;
     state.lifetimePoints += earnedPoints;
@@ -1564,7 +1702,9 @@
     if (progress.correctStreak >= MASTERY_STREAK && !progress.mastered) {
       progress.mastered = true;
       progress.masteredAt = Date.now();
-      setFeedback(`Correct! +${earnedPoints} ${pluralise(earnedPoints, "point")}. Mastered “${progress.word}”.${battleText}`, "success");
+      const unlockedLevel = unlockNextLevelIfReady(state);
+      const unlockText = unlockedLevel ? ` Level ${unlockedLevel} words have been added.` : "";
+      setFeedback(`Correct! +${earnedPoints} ${pluralise(earnedPoints, "point")}. Mastered “${progress.word}”.${battleText}${unlockText}`, "success");
       return;
     }
 
@@ -1587,8 +1727,56 @@
 
   function handleIncorrectAnswer(progress, answer) {
     progress.correctStreak = 0;
+    progress.lastAttemptWasWrong = true;
     insertWordAfterGap(progress.word, WRONG_REVIEW_GAP);
     setFeedback(`Not quite. ${answer ? `You typed “${answer}”. ` : ""}The word was “${progress.word}”. It will come back soon.`, "error");
+  }
+
+  function canRevealCurrentWord() {
+    if (!currentWord) {
+      return false;
+    }
+
+    const progress = state.progress[currentWord];
+    return Boolean(progress && (Number(progress.attempts || 0) === 0 || progress.lastAttemptWasWrong));
+  }
+
+  function revealCurrentWord() {
+    if (!canRevealCurrentWord()) {
+      return;
+    }
+
+    elements.hintText.textContent = `Word: ${currentWord}`;
+    focusAnswerInput();
+  }
+
+  function unlockNextLevelIfReady(targetState) {
+    const unlockedLevels = getUnlockedLevels(targetState);
+    if (unlockedLevels.length === 0) {
+      return null;
+    }
+
+    const currentLevel = unlockedLevels[unlockedLevels.length - 1];
+    if (currentLevel >= MAX_LEVEL) {
+      return null;
+    }
+
+    const levelWords = getLevelEntries(currentLevel).map((entry) => entry.word);
+    const masteredCount = levelWords.filter((word) => targetState.progress[word] && targetState.progress[word].mastered).length;
+    const targetMastered = Math.max(1, levelWords.length - LEVEL_UNLOCK_REMAINING);
+
+    if (masteredCount < targetMastered) {
+      return null;
+    }
+
+    const nextLevel = currentLevel + 1;
+    if (!targetState.unlockedLevels.includes(nextLevel)) {
+      targetState.unlockedLevels.push(nextLevel);
+      ensureProgressForActiveWords(targetState);
+      return nextLevel;
+    }
+
+    return null;
   }
 
   function renderStats() {
@@ -1603,6 +1791,8 @@
     elements.cardsTotal.textContent = ownedCount;
     elements.battlePointsTotal.textContent = Number(state.battlePoints || 0);
     elements.battlePointNextText.textContent = `${getCorrectSpellingsUntilBattlePoint()} correct to next battle point`;
+    const highestLevel = getUnlockedLevels(state).slice(-1)[0] || "—";
+    elements.wordLevelBadge.textContent = state.selectedLevel ? `Level ${highestLevel} · ${WORDS.length} words active` : "Choose a level";
     elements.shopOpenTotal.textContent = `${availableCount}/${CREATURE_CARD_TEMPLATES.length}`;
 
     if (!nextPack) {
@@ -1978,7 +2168,12 @@ function handleShopClick(event) {
   }
 
 function scoreWord(word) {
-    return Math.max(1, word.length - 1);
+    const length = word.length;
+    if (length <= 2) return 1;
+    if (length <= 4) return 2;
+    if (length <= 6) return 3;
+    if (length <= 8) return 4;
+    return 5;
   }
 
   function calculateEarnedPoints(targetState) {
@@ -2011,6 +2206,7 @@ function scoreWord(word) {
 
     const config = getSupabaseConfig();
     supabaseClient = window.supabase.createClient(config.url, config.anonKey);
+    await loadWordEntriesFromSupabase();
 
     const { data } = await supabaseClient.auth.getSession();
     await handleAuthSession(data.session);
@@ -2018,6 +2214,40 @@ function scoreWord(word) {
     supabaseClient.auth.onAuthStateChange(async (_event, session) => {
       await handleAuthSession(session);
     });
+  }
+
+  async function loadWordEntriesFromSupabase() {
+    if (!supabaseClient) {
+      return;
+    }
+
+    const allRows = [];
+    const pageSize = 1000;
+    for (let from = 0; from < 6000; from += pageSize) {
+      const { data, error } = await supabaseClient
+        .from("word_entries")
+        .select("word,level,band,simple_sentence,sort_order")
+        .eq("list_id", "graded-5000")
+        .order("level", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        elements.authStatus.textContent = `Using local word list. Database word list not loaded: ${error.message}`;
+        return;
+      }
+
+      allRows.push(...(data || []));
+      if (!data || data.length < pageSize) {
+        break;
+      }
+    }
+
+    if (allRows.length > 0) {
+      setWordEntries(allRows);
+      state = restoreStateShape(state);
+      saveState();
+    }
   }
 
   async function handleAuthSession(session) {
@@ -2028,13 +2258,16 @@ function scoreWord(word) {
       await ensureProfile();
       await loadRemoteProgress();
       await refreshCardsFromSupabase();
+      renderLevelSelector();
       renderStats();
       renderShop();
       renderCollection();
       renderPacks();
       renderBattlePanel();
+      renderLevelSelector();
     } else {
       renderBattlePanel();
+      renderLevelSelector();
     }
   }
 
@@ -2105,6 +2338,7 @@ function scoreWord(word) {
         user_id: currentUser.id,
         email: currentUser.email || null,
         display_name: (currentUser.email || "Player").split("@")[0],
+        starting_level: state.selectedLevel || null,
         updated_at: new Date().toISOString()
       }, { onConflict: "user_id" });
   }
@@ -2123,7 +2357,7 @@ function scoreWord(word) {
       .from("user_progress")
       .upsert({
         user_id: currentUser.id,
-        mode: currentMode,
+        mode: "graded",
         state,
         updated_at: new Date().toISOString()
       }, { onConflict: "user_id,mode" });
@@ -2136,7 +2370,7 @@ function scoreWord(word) {
       .from("user_progress")
       .select("state")
       .eq("user_id", currentUser.id)
-      .eq("mode", currentMode)
+      .eq("mode", "graded")
       .maybeSingle();
 
     if (error) {
@@ -2153,26 +2387,31 @@ function scoreWord(word) {
   }
 
   function restoreStateShape(savedState) {
+    const selectedLevel = Number.isInteger(Number(savedState.selectedLevel)) ? clamp(Number(savedState.selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
     const restored = {
-      ...makeInitialState(),
+      ...makeInitialState(selectedLevel),
       ...savedState,
-      battlePoints: Number.isFinite(savedState.battlePoints) ? Math.max(0, savedState.battlePoints) : 0,
-      correctSpellingsTowardBattlePoint: Number.isFinite(savedState.correctSpellingsTowardBattlePoint) ? Math.max(0, savedState.correctSpellingsTowardBattlePoint) : 0,
+      selectedLevel,
       progress: savedState.progress && typeof savedState.progress === "object" ? savedState.progress : {},
       ownedCards: sanitiseOwnedCards(savedState.ownedCards || []),
-      unlockedPackIds: Array.isArray(savedState.unlockedPackIds) ? savedState.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID]
+      unlockedPackIds: Array.isArray(savedState.unlockedPackIds) ? savedState.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID],
+      unlockedLevels: Array.isArray(savedState.unlockedLevels) ? savedState.unlockedLevels : (selectedLevel ? [selectedLevel] : [])
     };
 
-    WORDS.forEach((word, index) => {
-      const savedProgress = restored.progress[word] || {};
-      restored.progress[word] = {
-        ...makeBlankProgress(word),
-        ...savedProgress,
-        word,
-        introduced: Boolean(savedProgress.introduced || savedProgress.mastered || Number(savedProgress.attempts || 0) > 0 || index < ACTIVE_WORD_TARGET),
-        mastered: Boolean(savedProgress.mastered)
-      };
-    });
+    if (restored.selectedLevel) {
+      ensureProgressForActiveWords(restored);
+      for (const word of WORDS) {
+        const savedProgress = restored.progress[word] || {};
+        restored.progress[word] = {
+          ...makeBlankProgress(word),
+          ...savedProgress,
+          word,
+          introduced: Boolean(savedProgress.introduced || savedProgress.mastered || Number(savedProgress.attempts || 0) > 0),
+          mastered: Boolean(savedProgress.mastered),
+          lastAttemptWasWrong: Boolean(savedProgress.lastAttemptWasWrong)
+        };
+      }
+    }
 
     ensurePackUnlockState(restored);
     cleanQueue(restored);
@@ -2640,7 +2879,8 @@ function scoreWord(word) {
   }
 
   function getSentenceForWord(word) {
-    return SIMPLE_SENTENCES[word] || `I can spell the word ${word}.`;
+    const entry = getEntryForWord(word);
+    return (entry && entry.sentence) || SIMPLE_SENTENCES[word] || `Please spell the word ${word}.`;
   }
 
   function speakCurrentWord() {
@@ -2686,7 +2926,7 @@ function scoreWord(word) {
   function renderRestingState() {
     elements.practicePanel.hidden = true;
     elements.restingPanel.hidden = false;
-    elements.nextDueText.textContent = `You mastered every word in ${getModeLabel(currentMode)}. Great work! You can still spend your points in the shop.`;
+    elements.nextDueText.textContent = "You mastered every active word. Great work!";
   }
 
   function normaliseAnswer(value) {

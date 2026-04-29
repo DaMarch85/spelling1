@@ -15,13 +15,6 @@
         <p class="lede">Spell words, earn points, buy cards, unlock packs, and battle other players.</p>
       </div>
       <div class="header-actions">
-        <label class="mode-control" for="modeSelect">
-          <span>Mode</span>
-          <select id="modeSelect">
-            <option value="normal">Normal</option>
-            <option value="hard">Hard</option>
-          </select>
-        </label>
         <button class="secondary-button" id="resetButton" type="button">Reset</button>
       </div>
     </header>
@@ -44,12 +37,22 @@
       </div>
     </section>
 
+    <section class="level-card" id="levelPanel" aria-labelledby="levelTitle">
+      <div class="game-card__topline">
+        <div>
+          <h2 id="levelTitle">Choose your starting level</h2>
+          <p class="small-note" id="levelStatus">Pick the level that feels right.</p>
+        </div>
+      </div>
+      <div class="level-grid" id="levelGrid"></div>
+    </section>
+
     <main class="layout">
       <section class="game-card" aria-labelledby="practiceTitle">
         <div class="game-card__topline">
           <h2 id="practiceTitle">Spell</h2>
           <div class="topline-pills">
-            <span class="pill" id="modeWordTotal">Normal · 0 words</span>
+            <span class="pill" id="wordLevelBadge">Choose a level</span>
             <span class="pill" id="dueCount">0 queued</span>
           </div>
         </div>
@@ -71,6 +74,7 @@
           <div class="button-row">
             <button class="primary-button" id="speakButton" type="button">🔊 Hear word</button>
             <button class="secondary-button" id="hintButton" type="button">Hint</button>
+            <button class="secondary-button" id="revealWordButton" type="button">Reveal word</button>
             <button class="secondary-button" id="skipButton" type="button">Skip</button>
           </div>
 
@@ -237,8 +241,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="src/supabase-config.js"></script>
-    <script src="src/words.js"></script>
-    <script src="src/hard-words.js"></script>
+    <script src="src/graded-words.js"></script>
     <script src="src/app.js"></script>
   </body>
 </html>
