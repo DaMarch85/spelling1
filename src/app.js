@@ -1277,6 +1277,7 @@
   let currentUser = null;
   let remoteSaveTimer = null;
   let currentBattle = null;
+  let currentBattlePointSpent = false;
   let battlePollTimer = null;
 
   initialise();
@@ -2746,6 +2747,7 @@ function scoreWord(word) {
       return;
     }
 
+    currentBattlePointSpent = false;
     elements.enterBattleButton.disabled = true;
     elements.battleResult.textContent = "";
     renderBattleGrid(0.5);
@@ -2784,6 +2786,7 @@ function scoreWord(word) {
       }
 
       spendBattlePoint();
+      currentBattlePointSpent = true;
       currentBattle = joinedBattle;
       renderMatchedBattle(joinedBattle);
       await resolveCurrentBattle();
@@ -2809,7 +2812,7 @@ function scoreWord(word) {
       return;
     }
 
-    spendBattlePoint();
+    currentBattlePointSpent = false;
     currentBattle = createdBattle;
     elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index].name} strength: ${attackStrength}.`;
     elements.battleOpponent.textContent = "";
@@ -2866,6 +2869,10 @@ function scoreWord(word) {
 
       if (data.status === "ready") {
         renderMatchedBattle(data);
+        if (!currentBattlePointSpent) {
+          spendBattlePoint();
+          currentBattlePointSpent = true;
+        }
         await resolveCurrentBattle();
       } else if (data.status === "resolved") {
         stopBattlePolling();
@@ -2945,6 +2952,7 @@ function scoreWord(word) {
       : "You lost your card. You can buy it again.";
 
     currentBattle = null;
+    currentBattlePointSpent = false;
     elements.enterBattleButton.disabled = false;
     renderBattlePanel();
   }
