@@ -1,237 +1,1108 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="A spelling, card collecting, and battle game for kids." />
-    <title>Spell Battle Cards</title>
-    <link rel="stylesheet" href="src/styles.css" />
-  </head>
-  <body>
-    <header class="site-header">
-      <div>
-        <p class="eyebrow">Spelling · Cards · Battles</p>
-        <h1>Spell Battle Cards</h1>
-        <p class="lede">Spell words, earn points, buy cards, unlock packs, and battle other players.</p>
-      </div>
-      <div class="header-actions auth-card auth-card--compact" id="authPanel" aria-label="Account">
-        <label for="authEmail">Username</label>
-        <input id="authEmail" type="text" autocomplete="username" placeholder="username" />
-        <label for="authPassword">Password</label>
-        <input id="authPassword" type="text" autocomplete="current-password" placeholder="password" />
-        <button class="primary-button" id="signInButton" type="button">Log in</button>
-        <button class="secondary-button" id="signUpButton" type="button">Create account</button>
-        <button class="secondary-button" id="signOutButton" type="button" hidden>Sign out</button>
-        <p class="small-note" id="authStatus">Checking account status…</p>
-        <button class="secondary-button reset-inline" id="resetButton" type="button">Reset</button>
-      </div>
-    </header>
+:root {
+  --bg: #0f141b;
+  --panel: rgba(19, 27, 38, 0.9);
+  --panel-strong: rgba(33, 46, 63, 0.9);
+  --text: #edf4ff;
+  --muted: #a4b1c5;
+  --line: rgba(255, 255, 255, 0.1);
+  --button: #ff6a3d;
+  --button-dark: #e65222;
+  --danger: #f36b6b;
+  --success: #52d48c;
+  --info: #84c4ff;
+  --shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
-    <section class="level-card" id="levelPanel" aria-labelledby="levelTitle">
-      <div class="game-card__topline">
-        <div>
-          <h2 id="levelTitle">Choose your starting level</h2>
-          <p class="small-note" id="levelStatus">Pick the level that feels right.</p>
-        </div>
-      </div>
-      <div class="level-grid" id="levelGrid"></div>
-    </section>
+* {
+  box-sizing: border-box;
+}
 
-    <main class="layout">
-      <section class="game-card" aria-labelledby="practiceTitle">
-        <div class="game-card__topline">
-          <h2 id="practiceTitle">Spell</h2>
-          <div class="topline-pills">
-            <span class="pill" id="wordLevelBadge">Choose a level</span>
-            <span class="pill" id="dueCount">0 queued</span>
-          </div>
-        </div>
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(255, 120, 80, 0.16), transparent 30rem),
+    radial-gradient(circle at top right, rgba(72, 104, 255, 0.16), transparent 28rem),
+    radial-gradient(circle at bottom center, rgba(87, 240, 172, 0.08), transparent 26rem),
+    linear-gradient(180deg, #0a1018 0%, #101722 100%);
+  color: var(--text);
+}
 
-        <div id="restingPanel" class="resting-panel" hidden>
-          <p class="resting-panel__title">All words mastered.</p>
-          <p id="nextDueText">Great work!</p>
-          <button class="primary-button" id="refreshButton" type="button">Refresh</button>
-        </div>
+button,
+input,
+select {
+  font: inherit;
+}
 
-        <div id="practicePanel">
-          <div class="prompt-box">
-            <p class="prompt-label">Spell the word you hear</p>
-            <p class="word-length" id="wordLength">Word length: —</p>
-            <p class="context-clue" id="contextClue"></p>
-            <div class="streak-eggs" aria-label="Current correct streak" id="streakEggs"></div>
-          </div>
+button {
+  cursor: pointer;
+}
 
-          <div class="button-row">
-            <button class="primary-button" id="speakButton" type="button">🔊 Hear word</button>
-            <button class="secondary-button" id="hintButton" type="button">Hint</button>
-            <button class="secondary-button" id="revealWordButton" type="button">Reveal word</button>
-            <button class="secondary-button" id="skipButton" type="button">Skip</button>
-          </div>
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 
-          <div class="voice-control" id="voiceControl" hidden>
-            <label for="voiceSelect">Voice</label>
-            <select id="voiceSelect" aria-label="Speech voice"></select>
-          </div>
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
 
-          <p class="hint" id="hintText" aria-live="polite"></p>
+.site-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 1rem;
+}
 
-          <form id="spellForm" autocomplete="off">
-            <label for="answerInput">Your spelling</label>
-            <div class="input-row">
-              <input id="answerInput" name="answer" type="text" inputmode="text" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" required />
-              <button class="primary-button" type="submit">Submit</button>
-            </div>
-          </form>
+h1 {
+  margin-bottom: 0.35rem;
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
 
-          <div class="feedback" id="feedback" aria-live="polite"></div>
-        </div>
-      </section>
+h2 {
+  margin-bottom: 0;
+  font-size: clamp(1.25rem, 3vw, 1.65rem);
+}
 
-      <aside class="stats-card" aria-labelledby="statsTitle">
-        <h2 id="statsTitle">Score</h2>
-        <div class="stats-grid">
-          <div>
-            <span class="stat-number" id="pointsTotal">0</span>
-            <span class="stat-label">shop points</span>
-          </div>
-          <div>
-            <span class="stat-number" id="battlePointsTotal">0</span>
-            <span class="stat-label">battle points</span>
-          </div>
-          <div>
-            <span class="stat-number" id="cardsTotal">0</span>
-            <span class="stat-label">cards</span>
-          </div>
-          <div>
-            <span class="stat-number" id="masteredTotal">0</span>
-            <span class="stat-label">mastered</span>
-          </div>
-          <div>
-            <span class="stat-number" id="shopOpenTotal">0</span>
-            <span class="stat-label">available</span>
-          </div>
-        </div>
+h3 {
+  margin-bottom: 0.4rem;
+  font-size: 1.12rem;
+}
 
-        <div class="progress-block">
-          <div class="progress-copy">
-            <span>Next pack</span>
-            <strong id="nextShopText">0 / 5 owned</strong>
-          </div>
-          <div class="progress-track" aria-hidden="true">
-            <div class="progress-fill" id="shopProgress"></div>
-          </div>
-        </div>
+.eyebrow {
+  margin-bottom: 0.45rem;
+  color: #ffb598;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 
-        <p class="small-note" id="battlePointNextText">10 correct to next battle point</p>
-      </aside>
+.lede {
+  max-width: 48rem;
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
 
-      <section class="pack-card" aria-labelledby="packTitle">
-        <div class="game-card__topline">
-          <h2 id="packTitle">Packs</h2>
-          <span class="pill" id="packStatusBadge">0/4 unlocked</span>
-        </div>
-        <div class="pack-grid" id="packGrid"></div>
-      </section>
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(19rem, 0.75fr);
+  gap: 1rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
 
-      <section class="shop-card" aria-labelledby="shopTitle">
-        <div class="game-card__topline">
-          <h2 id="shopTitle">Card shop</h2>
-          <span class="pill" id="shopStatusBadge">0 available</span>
-        </div>
-        <p class="small-note" id="shopMessage">Buy cards to unlock packs.</p>
-        <div class="feedback" id="shopFlash" aria-live="polite"></div>
-        <div class="card-grid" id="shopGrid"></div>
-      </section>
+.game-card,
+.stats-card,
+.shop-card,
+.album-card {
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  padding: 1.25rem;
+}
 
-      <section class="album-card" aria-labelledby="albumTitle">
-        <div class="game-card__topline">
-          <h2 id="albumTitle">Collection</h2>
-          <span class="pill" id="collectionBadge">No cards yet</span>
-        </div>
-        <div class="card-grid" id="collectionGrid"></div>
-      </section>
+.shop-card,
+.album-card {
+  grid-column: 1 / -1;
+}
 
-      <section class="battle-card" id="battlePanel" aria-labelledby="battleTitle">
-        <div class="game-card__topline">
-          <h2 id="battleTitle">Battle arena</h2>
-          <span class="pill">1 battle point per fight</span>
-        </div>
-        <div class="battle-controls">
-          <label for="battleCardSelect">Your fighter</label>
-          <select id="battleCardSelect"></select>
-          <button class="primary-button" id="enterBattleButton" type="button">Battle</button>
-        </div>
-        <p class="feedback is-info" id="battleStatus" aria-live="polite">Sign in to battle.</p>
-        <p class="small-note" id="battleOpponent"></p>
-        <div class="battle-grid" id="battleGrid" aria-label="Battle chance grid"></div>
-        <p class="feedback" id="battleResult" aria-live="polite"></p>
-      </section>
-    </main>
+.game-card__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
 
-    <template id="shopCardTemplate">
-      <article class="monster-card">
-        <div class="monster-card__art">
-          <img class="monster-card__image" alt="" />
-          <strong class="monster-card__mystery-mark" aria-hidden="true">?</strong>
-          <span class="monster-card__art-badge"></span>
-          <span class="monster-card__tagline"></span>
-        </div>
-        <div class="monster-card__body">
-          <div class="monster-card__topline">
-            <span class="monster-card__type"></span>
-            <span class="monster-card__rarity-pill"></span>
-          </div>
-          <h3 class="monster-card__title"></h3>
-          <p class="monster-card__description"></p>
-          <div class="monster-card__stats">
-            <div class="monster-stat"><span>ATK</span><strong class="monster-card__attack"></strong></div>
-            <div class="monster-stat"><span>PWR</span><strong class="monster-card__power"></strong></div>
-            <div class="monster-stat"><span>RAR</span><strong class="monster-card__rarity-short"></strong></div>
-          </div>
-          <div class="monster-card__footer">
-            <div>
-              <span class="monster-card__meta"></span>
-              <span class="monster-card__cost"></span>
-            </div>
-            <button class="primary-button" type="button">Buy</button>
-          </div>
-        </div>
-      </article>
-    </template>
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff1db;
+  font-weight: 800;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
 
-    <template id="collectionCardTemplate">
-      <article class="monster-card monster-card--owned">
-        <div class="monster-card__art">
-          <img class="monster-card__image" alt="" />
-          <strong class="monster-card__mystery-mark" aria-hidden="true">?</strong>
-          <span class="monster-card__art-badge"></span>
-          <span class="monster-card__tagline"></span>
-        </div>
-        <div class="monster-card__body">
-          <div class="monster-card__topline">
-            <span class="monster-card__type"></span>
-            <span class="monster-card__rarity-pill"></span>
-          </div>
-          <h3 class="monster-card__title"></h3>
-          <p class="monster-card__description"></p>
-          <div class="monster-card__stats">
-            <div class="monster-stat"><span>ATK</span><strong class="monster-card__attack"></strong></div>
-            <div class="monster-stat"><span>PWR</span><strong class="monster-card__power"></strong></div>
-            <div class="monster-stat"><span>RAR</span><strong class="monster-card__rarity-short"></strong></div>
-          </div>
-          <div class="monster-card__footer monster-card__footer--no-button">
-            <div>
-              <span class="monster-card__meta"></span>
-              <span class="monster-card__cost"></span>
-            </div>
-          </div>
-        </div>
-      </article>
-    </template>
+.prompt-box {
+  display: grid;
+  place-items: center;
+  min-height: 14rem;
+  border: 2px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  padding: 1.5rem;
+  background: linear-gradient(160deg, rgba(255, 107, 61, 0.18), rgba(86, 111, 255, 0.14));
+  text-align: center;
+}
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="src/supabase-config.js"></script>
-    <script src="src/graded-words.js"></script>
-    <script src="src/app.js"></script>
-  </body>
-</html>
+.prompt-label {
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.word-length {
+  margin-bottom: 0.5rem;
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.context-clue {
+  min-height: 1.5rem;
+  margin: 0 0 1rem;
+  color: #ffd6a3;
+  font-weight: 800;
+}
+
+.streak-eggs {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: center;
+}
+
+.egg {
+  width: 2rem;
+  height: 2.35rem;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50% 50% 45% 45%;
+  background: rgba(255, 255, 255, 0.08);
+  transform: rotate(-7deg);
+}
+
+.egg.is-filled {
+  background: linear-gradient(180deg, #8cffb1, #3fdc79);
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.18), 0 0 18px rgba(82, 212, 140, 0.28);
+}
+
+.button-row,
+.input-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.primary-button,
+.secondary-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.85rem 1.1rem;
+  font-weight: 900;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.primary-button {
+  background: linear-gradient(180deg, #ff784d, #e85224);
+  color: white;
+  box-shadow: 0 12px 24px rgba(232, 82, 36, 0.22);
+}
+
+.secondary-button {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.primary-button:hover,
+.secondary-button:hover {
+  transform: translateY(-1px);
+}
+
+.primary-button:active,
+.secondary-button:active {
+  transform: translateY(0);
+}
+
+.voice-control {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.voice-control label {
+  margin-bottom: 0;
+}
+
+.voice-control select {
+  width: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 0.75rem 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-weight: 800;
+  outline: none;
+}
+
+.voice-control select:focus {
+  border-color: #ff8b5d;
+  box-shadow: 0 0 0 4px rgba(255, 120, 77, 0.14);
+}
+
+form {
+  margin-top: 1rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.input-row {
+  margin-top: 0;
+}
+
+input {
+  flex: 1 1 14rem;
+  width: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 0.95rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 800;
+  outline: none;
+}
+
+input:focus {
+  border-color: #ff8b5d;
+  box-shadow: 0 0 0 4px rgba(255, 120, 77, 0.14);
+}
+
+.hint {
+  min-height: 1.5rem;
+  margin: 1rem 0 0;
+  color: #ffd9a8;
+  font-weight: 700;
+}
+
+.feedback {
+  min-height: 1.6rem;
+  margin-top: 1rem;
+  padding: 0.15rem 0;
+  font-weight: 800;
+}
+
+.feedback.is-success {
+  color: var(--success);
+}
+
+.feedback.is-error {
+  border: 1px solid rgba(243, 107, 107, 0.34);
+  border-radius: 18px;
+  padding: 0.9rem 1rem;
+  background: rgba(243, 107, 107, 0.1);
+  color: #ff9a9a;
+  font-size: clamp(1.2rem, 3.2vw, 1.55rem);
+  line-height: 1.35;
+}
+
+.feedback.is-info {
+  color: var(--info);
+}
+
+.resting-panel {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem 0 0;
+}
+
+.resting-panel__title {
+  margin-bottom: 0;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.stats-grid > div {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  padding: 1rem;
+  background: var(--panel-strong);
+}
+
+.stat-number {
+  display: block;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+
+.stat-label {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.progress-block {
+  margin-top: 1rem;
+  border-radius: 24px;
+  padding: 1rem;
+  background: var(--panel-strong);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.progress-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+  font-weight: 800;
+}
+
+.progress-copy span {
+  color: var(--muted);
+}
+
+.progress-track {
+  overflow: hidden;
+  height: 0.85rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff824f, #ffd063);
+}
+
+.small-note {
+  margin-top: 1rem;
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  perspective: 1200px;
+}
+
+.monster-card {
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+  transform-style: preserve-3d;
+}
+
+.monster-card.is-flipping {
+  animation: cardFlipReveal 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes cardFlipReveal {
+  0% {
+    transform: rotateY(180deg) scale(0.96);
+    filter: brightness(0.6);
+  }
+  45% {
+    transform: rotateY(90deg) scale(1.03);
+    filter: brightness(0.9);
+  }
+  100% {
+    transform: rotateY(0deg) scale(1);
+    filter: brightness(1);
+  }
+}
+
+.monster-card__art {
+  position: relative;
+  min-height: 12rem;
+  background: linear-gradient(180deg, #252e3b, #161b24);
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.monster-card__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 12rem;
+  object-fit: cover;
+  background: #1c2430;
+}
+
+.monster-card__art::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.82));
+  pointer-events: none;
+}
+
+.monster-card__mystery-mark {
+  display: none;
+}
+
+.monster-card__art-badge,
+.monster-card__tagline {
+  position: absolute;
+  z-index: 1;
+  left: 0.8rem;
+}
+
+.monster-card__art-badge {
+  top: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.6rem;
+  border-radius: 999px;
+  padding: 0.18rem 0.58rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff3df;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.monster-card__tagline {
+  bottom: 0.8rem;
+  right: 0.8rem;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 900;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.monster-card__body {
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+}
+
+.monster-card__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.monster-card__type,
+.monster-card__rarity-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.monster-card__type {
+  background: rgba(255, 255, 255, 0.08);
+  color: #dce8ff;
+}
+
+.monster-card__rarity-pill {
+  background: rgba(255, 201, 96, 0.16);
+  color: #ffd88e;
+}
+
+.monster-card__description {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.95rem;
+}
+
+.monster-card__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.15rem;
+}
+
+.monster-stat {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(255, 255, 255, 0.05);
+  text-align: center;
+}
+
+.monster-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.monster-stat strong {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.monster-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.monster-card__footer--no-button {
+  justify-content: flex-start;
+}
+
+.monster-card__meta,
+.monster-card__cost {
+  display: block;
+  color: #d8e2f0;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.monster-card__cost {
+  color: #ffd88e;
+  margin-top: 0.15rem;
+}
+
+.monster-card.is-owned {
+  box-shadow: 0 0 0 1px rgba(82, 212, 140, 0.28), 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
+.monster-card.is-unaffordable {
+  opacity: 0.82;
+}
+
+.monster-card.is-mystery .monster-card__art,
+.monster-card.is-locked .monster-card__art {
+  display: grid;
+  place-items: center;
+  min-height: 12rem;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 128, 72, 0.22), transparent 4.5rem),
+    linear-gradient(145deg, #242934, #111620 72%);
+}
+
+.monster-card.is-mystery .monster-card__image,
+.monster-card.is-locked .monster-card__image {
+  display: none;
+}
+
+.monster-card.is-mystery .monster-card__mystery-mark,
+.monster-card.is-locked .monster-card__mystery-mark {
+  display: block;
+  z-index: 1;
+  font-size: clamp(5rem, 14vw, 7rem);
+  line-height: 1;
+  font-weight: 1000;
+  color: #fff3df;
+  text-shadow:
+    0 0 30px rgba(255, 128, 72, 0.38),
+    0 12px 24px rgba(0, 0, 0, 0.55);
+}
+
+.monster-card.is-mystery .monster-card__art-badge {
+  top: 0.75rem;
+  left: 0.75rem;
+  font-size: 0.72rem;
+}
+
+.monster-card.is-mystery .monster-card__tagline,
+.monster-card.is-locked .monster-card__tagline {
+  text-align: center;
+  left: 0.75rem;
+  right: 0.75rem;
+}
+
+.monster-card.is-mystery .monster-card__topline,
+.monster-card.is-mystery .monster-card__description,
+.monster-card.is-mystery .monster-card__stats {
+  display: none;
+}
+
+.monster-card.is-mystery .monster-card__title {
+  margin-bottom: 0;
+  font-size: 1.35rem;
+  text-align: center;
+}
+
+.monster-card.is-mystery .monster-card__footer {
+  justify-content: space-between;
+}
+
+.monster-card.is-locked .monster-card__mystery-mark {
+  opacity: 0.4;
+}
+
+.empty-album {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .site-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.header-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mode-control {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0;
+}
+
+.mode-control span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mode-control select,
+.voice-control select {
+  min-height: 2.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  padding: 0.55rem 2.4rem 0.55rem 0.85rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 900;
+}
+
+.topline-pills {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .header-actions {
+    justify-content: stretch;
+  }
+
+  .mode-control,
+  .header-actions .secondary-button {
+    width: 100%;
+  }
+
+  .mode-control select {
+    width: 100%;
+  }
+}
+
+
+/* Square UI update */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
+.auth-card,
+.pack-card,
+.battle-card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  padding: 1.25rem;
+  max-width: 1240px;
+  margin: 1rem auto 0;
+}
+
+.auth-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.8fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.auth-form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.auth-form input {
+  flex: initial;
+}
+
+.pack-card,
+.battle-card {
+  grid-column: 1 / -1;
+  max-width: none;
+  margin: 0;
+}
+
+.pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.pack-tile {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1rem;
+}
+
+.pack-tile.is-unlocked {
+  border-color: rgba(82, 212, 140, 0.45);
+  box-shadow: 0 0 0 1px rgba(82, 212, 140, 0.16);
+}
+
+.pack-tile.is-locked {
+  opacity: 0.74;
+}
+
+.pack-tile h3 {
+  margin-bottom: 0.45rem;
+}
+
+.pack-tile p {
+  color: var(--muted);
+  margin-bottom: 0.7rem;
+}
+
+.pack-tile strong,
+.pack-tile span {
+  display: block;
+  font-weight: 900;
+}
+
+.pack-tile span {
+  margin-top: 0.35rem;
+  color: #ffd6a3;
+  font-size: 0.9rem;
+}
+
+.battle-controls {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-top: 1rem;
+}
+
+.battle-controls label {
+  grid-column: 1 / -1;
+  margin-bottom: -0.35rem;
+}
+
+.battle-controls select,
+.mode-control select,
+.voice-control select {
+  width: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.battle-grid {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+  max-width: 34rem;
+  margin-top: 1rem;
+}
+
+.battle-square {
+  display: block;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.battle-square.is-user {
+  background: #e64f4f;
+}
+
+.battle-square.is-opponent {
+  background: #3578ff;
+}
+
+.monster-card.is-locked .monster-card__mystery-mark {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.monster-card.is-mystery .monster-card__mystery-mark {
+  display: grid;
+}
+
+@media (max-width: 900px) {
+  .auth-card {
+    grid-template-columns: 1fr;
+    margin-left: 1.25rem;
+    margin-right: 1.25rem;
+  }
+
+  .battle-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Cleaner battle-card interface refresh */
+body {
+  background:
+    radial-gradient(circle at top left, rgba(255, 120, 80, 0.12), transparent 28rem),
+    radial-gradient(circle at bottom right, rgba(72, 104, 255, 0.1), transparent 30rem),
+    #0b1118;
+}
+
+.site-header,
+.auth-card,
+.layout {
+  max-width: 1280px;
+}
+
+.game-card,
+.stats-card,
+.shop-card,
+.album-card,
+.pack-card,
+.battle-card,
+.auth-card {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+}
+
+.stat-number {
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+}
+
+.card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.battle-grid {
+  width: min(100%, 36rem);
+  max-width: 36rem;
+}
+
+.battle-square.is-highlighted {
+  outline: 4px solid #fff7b2;
+  outline-offset: -2px;
+  box-shadow: 0 0 20px rgba(255, 247, 178, 0.9), inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+  transform: scale(1.08);
+  z-index: 1;
+}
+
+.feedback.is-info {
+  color: var(--info);
+}
+
+.small-note {
+  line-height: 1.45;
+}
+
+.level-card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  padding: 1.25rem;
+  max-width: 1280px;
+  margin: 1rem auto 0;
+}
+
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.level-tile {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1rem;
+}
+
+.level-tile h3 {
+  margin-bottom: 0.45rem;
+}
+
+.level-tile p {
+  min-height: 4.2rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+#revealWordButton:disabled {
+  opacity: 0.42;
+}
+
+@media (max-width: 900px) {
+  .level-card {
+    margin-left: 1.25rem;
+    margin-right: 1.25rem;
+  }
+}
+
+/* Items 1-7 update: compact account bar, visible levels, manual pack unlocks */
+.auth-card--compact {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr) auto minmax(8rem, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.7rem;
+  max-width: 100%;
+}
+
+.auth-card--compact label {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 900;
+  font-size: 0.8rem;
+}
+
+.auth-card--compact input {
+  min-height: 2.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0.45rem 0.65rem;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.auth-card--compact .primary-button,
+.auth-card--compact .secondary-button {
+  padding: 0.65rem 0.8rem;
+  min-height: 2.45rem;
+  white-space: nowrap;
+}
+
+.auth-card--compact #authStatus {
+  grid-column: 1 / -1;
+  margin: 0.2rem 0 0;
+}
+
+.level-tile.is-selected {
+  border-color: rgba(82, 212, 140, 0.55);
+  box-shadow: 0 0 0 1px rgba(82, 212, 140, 0.22) inset;
+}
+
+.pack-tile button {
+  width: fit-content;
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 1100px) {
+  .auth-card--compact {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .auth-card--compact label {
+    grid-column: auto;
+  }
+
+  .auth-card--compact #authStatus {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Items 8-13 update */
+.battle-jump-button {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.monster-card__stats--single {
+  grid-template-columns: 1fr;
+}
+
+.monster-card__stats--single .monster-stat {
+  text-align: left;
+}
+
+.monster-card__history-button {
+  width: 100%;
+  margin-top: 0.55rem;
+}
+
+.monster-card__history {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+}
+
+.monster-card__history h4 {
+  margin: 0 0 0.5rem;
+}
+
+.monster-card__history-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.monster-card.is-showing-history .monster-card__art,
+.monster-card.is-showing-history .monster-card__topline,
+.monster-card.is-showing-history .monster-card__title,
+.monster-card.is-showing-history .monster-card__description,
+.monster-card.is-showing-history .monster-card__stats,
+.monster-card.is-showing-history .monster-card__footer {
+  display: none;
+}
