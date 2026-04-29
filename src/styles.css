@@ -897,3 +897,60 @@ input:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* Cleaner battle-card interface refresh */
+body {
+  background:
+    radial-gradient(circle at top left, rgba(255, 120, 80, 0.12), transparent 28rem),
+    radial-gradient(circle at bottom right, rgba(72, 104, 255, 0.1), transparent 30rem),
+    #0b1118;
+}
+
+.site-header,
+.auth-card,
+.layout {
+  max-width: 1280px;
+}
+
+.game-card,
+.stats-card,
+.shop-card,
+.album-card,
+.pack-card,
+.battle-card,
+.auth-card {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+}
+
+.stat-number {
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+}
+
+.card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.battle-grid {
+  width: min(100%, 36rem);
+  max-width: 36rem;
+}
+
+.battle-square.is-highlighted {
+  outline: 4px solid #fff7b2;
+  outline-offset: -2px;
+  box-shadow: 0 0 20px rgba(255, 247, 178, 0.9), inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+  transform: scale(1.08);
+  z-index: 1;
+}
+
+.feedback.is-info {
+  color: var(--info);
+}
+
+.small-note {
+  line-height: 1.45;
+}

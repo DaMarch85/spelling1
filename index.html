@@ -3,33 +3,32 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="A spaced-repetition spelling game for kids." />
-    <title>Dino Speller</title>
+    <meta name="description" content="A spelling, card collecting, and battle game for kids." />
+    <title>Spell Battle Cards</title>
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div>
-        <p class="eyebrow">Spaced-repetition spelling</p>
-        <h1>Dino Speller</h1>
-        <p class="lede">Hear a word in a sentence, spell it, earn points, buy cards, unlock packs, and battle other players.</p>
+        <p class="eyebrow">Spelling · Cards · Battles</p>
+        <h1>Spell Battle Cards</h1>
+        <p class="lede">Spell words, earn points, buy cards, unlock packs, and battle other players.</p>
       </div>
       <div class="header-actions">
         <label class="mode-control" for="modeSelect">
           <span>Mode</span>
           <select id="modeSelect">
-            <option value="normal">Normal mode</option>
-            <option value="hard">Hard mode</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard</option>
           </select>
         </label>
-        <button class="secondary-button" id="resetButton" type="button">Reset progress</button>
+        <button class="secondary-button" id="resetButton" type="button">Reset</button>
       </div>
     </header>
 
     <section class="auth-card" id="authPanel" aria-labelledby="authTitle">
       <div>
-        <p class="eyebrow">Account</p>
-        <h2 id="authTitle">Save progress online</h2>
+        <h2 id="authTitle">Account</h2>
         <p class="small-note" id="authStatus">Checking account status…</p>
       </div>
       <div class="auth-form">
@@ -48,16 +47,16 @@
     <main class="layout">
       <section class="game-card" aria-labelledby="practiceTitle">
         <div class="game-card__topline">
-          <h2 id="practiceTitle">Practice word</h2>
+          <h2 id="practiceTitle">Spell</h2>
           <div class="topline-pills">
-            <span class="pill" id="modeWordTotal">Normal mode · 0 words</span>
+            <span class="pill" id="modeWordTotal">Normal · 0 words</span>
             <span class="pill" id="dueCount">0 queued</span>
           </div>
         </div>
 
         <div id="restingPanel" class="resting-panel" hidden>
           <p class="resting-panel__title">All words mastered.</p>
-          <p id="nextDueText">You mastered every word in the deck. Great work!</p>
+          <p id="nextDueText">Great work!</p>
           <button class="primary-button" id="refreshButton" type="button">Refresh</button>
         </div>
 
@@ -70,13 +69,13 @@
           </div>
 
           <div class="button-row">
-            <button class="primary-button" id="speakButton" type="button">🔊 Hear word in sentence</button>
-            <button class="secondary-button" id="hintButton" type="button">Show hint</button>
+            <button class="primary-button" id="speakButton" type="button">🔊 Hear word</button>
+            <button class="secondary-button" id="hintButton" type="button">Hint</button>
             <button class="secondary-button" id="skipButton" type="button">Skip</button>
           </div>
 
           <div class="voice-control" id="voiceControl" hidden>
-            <label for="voiceSelect">Speech voice</label>
+            <label for="voiceSelect">Voice</label>
             <select id="voiceSelect" aria-label="Speech voice"></select>
           </div>
 
@@ -95,29 +94,33 @@
       </section>
 
       <aside class="stats-card" aria-labelledby="statsTitle">
-        <h2 id="statsTitle">Progress</h2>
+        <h2 id="statsTitle">Score</h2>
         <div class="stats-grid">
           <div>
             <span class="stat-number" id="pointsTotal">0</span>
-            <span class="stat-label">points to spend</span>
+            <span class="stat-label">shop points</span>
+          </div>
+          <div>
+            <span class="stat-number" id="battlePointsTotal">0</span>
+            <span class="stat-label">battle points</span>
+          </div>
+          <div>
+            <span class="stat-number" id="cardsTotal">0</span>
+            <span class="stat-label">cards</span>
           </div>
           <div>
             <span class="stat-number" id="masteredTotal">0</span>
             <span class="stat-label">mastered</span>
           </div>
           <div>
-            <span class="stat-number" id="cardsTotal">0</span>
-            <span class="stat-label">cards owned</span>
-          </div>
-          <div>
             <span class="stat-number" id="shopOpenTotal">0</span>
-            <span class="stat-label">shop open</span>
+            <span class="stat-label">available</span>
           </div>
         </div>
 
         <div class="progress-block">
           <div class="progress-copy">
-            <span>Next pack unlock</span>
+            <span>Next pack</span>
             <strong id="nextShopText">0 / 5 owned</strong>
           </div>
           <div class="progress-track" aria-hidden="true">
@@ -125,54 +128,51 @@
           </div>
         </div>
 
-        <p class="small-note">Cards get more expensive as the collection grows: cards 1–5 cost 5 points each, cards 6–10 cost 10 points each, cards 11–15 cost 15 points each, and so on. Cards are now grouped into packs. Unlock a pack and all cards in that pack become available to buy.</p>
+        <p class="small-note" id="battlePointNextText">10 correct to next battle point</p>
       </aside>
-
 
       <section class="pack-card" aria-labelledby="packTitle">
         <div class="game-card__topline">
-          <h2 id="packTitle">Card packs</h2>
-          <span class="pill" id="packStatusBadge">0/4 packs unlocked</span>
+          <h2 id="packTitle">Packs</h2>
+          <span class="pill" id="packStatusBadge">0/4 unlocked</span>
         </div>
         <div class="pack-grid" id="packGrid"></div>
       </section>
 
       <section class="shop-card" aria-labelledby="shopTitle">
         <div class="game-card__topline">
-          <h2 id="shopTitle">Danger Shop</h2>
-          <span class="pill" id="shopStatusBadge">Pack cards available</span>
+          <h2 id="shopTitle">Card shop</h2>
+          <span class="pill" id="shopStatusBadge">0 available</span>
         </div>
-        <p class="small-note" id="shopMessage">Buy enough cards in the current pack to unlock the next pack.</p>
+        <p class="small-note" id="shopMessage">Buy cards to unlock packs.</p>
         <div class="feedback" id="shopFlash" aria-live="polite"></div>
         <div class="card-grid" id="shopGrid"></div>
       </section>
 
       <section class="album-card" aria-labelledby="albumTitle">
         <div class="game-card__topline">
-          <h2 id="albumTitle">Your collection</h2>
+          <h2 id="albumTitle">Collection</h2>
           <span class="pill" id="collectionBadge">No cards yet</span>
         </div>
         <div class="card-grid" id="collectionGrid"></div>
       </section>
-    </main>
-
 
       <section class="battle-card" id="battlePanel" aria-labelledby="battleTitle">
         <div class="game-card__topline">
           <h2 id="battleTitle">Battle arena</h2>
-          <span class="pill">10×10 arena</span>
+          <span class="pill">1 battle point per fight</span>
         </div>
-        <p class="small-note">Choose one owned card to fight with. The first time a card fights, it gets a random attack strength between its shop cost and 100. The winner takes the loser's card.</p>
         <div class="battle-controls">
-          <label for="battleCardSelect">Choose your fighter</label>
+          <label for="battleCardSelect">Your fighter</label>
           <select id="battleCardSelect"></select>
-          <button class="primary-button" id="enterBattleButton" type="button">Enter arena</button>
+          <button class="primary-button" id="enterBattleButton" type="button">Battle</button>
         </div>
-        <p class="feedback is-info" id="battleStatus" aria-live="polite">Sign in to battle another player.</p>
+        <p class="feedback is-info" id="battleStatus" aria-live="polite">Sign in to battle.</p>
         <p class="small-note" id="battleOpponent"></p>
         <div class="battle-grid" id="battleGrid" aria-label="Battle chance grid"></div>
         <p class="feedback" id="battleResult" aria-live="polite"></p>
       </section>
+    </main>
 
     <template id="shopCardTemplate">
       <article class="monster-card">
@@ -190,18 +190,9 @@
           <h3 class="monster-card__title"></h3>
           <p class="monster-card__description"></p>
           <div class="monster-card__stats">
-            <div class="monster-stat">
-              <span>ATK</span>
-              <strong class="monster-card__attack"></strong>
-            </div>
-            <div class="monster-stat">
-              <span>PWR</span>
-              <strong class="monster-card__power"></strong>
-            </div>
-            <div class="monster-stat">
-              <span>RAR</span>
-              <strong class="monster-card__rarity-short"></strong>
-            </div>
+            <div class="monster-stat"><span>ATK</span><strong class="monster-card__attack"></strong></div>
+            <div class="monster-stat"><span>PWR</span><strong class="monster-card__power"></strong></div>
+            <div class="monster-stat"><span>RAR</span><strong class="monster-card__rarity-short"></strong></div>
           </div>
           <div class="monster-card__footer">
             <div>
@@ -230,18 +221,9 @@
           <h3 class="monster-card__title"></h3>
           <p class="monster-card__description"></p>
           <div class="monster-card__stats">
-            <div class="monster-stat">
-              <span>ATK</span>
-              <strong class="monster-card__attack"></strong>
-            </div>
-            <div class="monster-stat">
-              <span>PWR</span>
-              <strong class="monster-card__power"></strong>
-            </div>
-            <div class="monster-stat">
-              <span>RAR</span>
-              <strong class="monster-card__rarity-short"></strong>
-            </div>
+            <div class="monster-stat"><span>ATK</span><strong class="monster-card__attack"></strong></div>
+            <div class="monster-stat"><span>PWR</span><strong class="monster-card__power"></strong></div>
+            <div class="monster-stat"><span>RAR</span><strong class="monster-card__rarity-short"></strong></div>
           </div>
           <div class="monster-card__footer monster-card__footer--no-button">
             <div>

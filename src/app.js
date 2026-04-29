@@ -10,7 +10,7 @@
   let currentMode = getInitialMode();
   let WORDS = WORD_BANKS[currentMode] || WORD_BANKS.normal;
 
-  const BASE_STORAGE_KEY = "dino-speller-state-v9";
+  const BASE_STORAGE_KEY = "dino-speller-state-v10";
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
   const DEFAULT_VOICE_NAME = "Google UK English Male";
   const DEFAULT_VOICE_LANG = "en-GB";
@@ -24,6 +24,7 @@
   ];
 
   const MASTERY_STREAK = 3;
+  const BATTLE_POINT_EVERY = 10;
   const CARD_PRICE_STEP = 5;
   const CARD_PRICE_GROUP_SIZE = 5;
   const INITIAL_UNLOCKED_PACK_ID = "prehistoric";
@@ -1146,6 +1147,8 @@
     pointsTotal: document.querySelector("#pointsTotal"),
     masteredTotal: document.querySelector("#masteredTotal"),
     cardsTotal: document.querySelector("#cardsTotal"),
+    battlePointsTotal: document.querySelector("#battlePointsTotal"),
+    battlePointNextText: document.querySelector("#battlePointNextText"),
     shopOpenTotal: document.querySelector("#shopOpenTotal"),
     nextShopText: document.querySelector("#nextShopText"),
     shopProgress: document.querySelector("#shopProgress"),
@@ -1271,9 +1274,11 @@
 
   function makeInitialState() {
     const initialState = {
-      version: 9,
+      version: 10,
       points: 0,
       lifetimePoints: 0,
+      battlePoints: 0,
+      correctSpellingsTowardBattlePoint: 0,
       ownedCards: [],
       unlockedPackIds: [INITIAL_UNLOCKED_PACK_ID],
       queue: [],
@@ -1303,9 +1308,11 @@
     try {
       const parsed = JSON.parse(raw);
       const loaded = {
-        version: 7,
+        version: 10,
         points: Number.isFinite(parsed.points) ? Math.max(0, parsed.points) : 0,
         lifetimePoints: Number.isFinite(parsed.lifetimePoints) ? Math.max(0, parsed.lifetimePoints) : 0,
+        battlePoints: Number.isFinite(parsed.battlePoints) ? Math.max(0, parsed.battlePoints) : 0,
+        correctSpellingsTowardBattlePoint: Number.isFinite(parsed.correctSpellingsTowardBattlePoint) ? Math.max(0, parsed.correctSpellingsTowardBattlePoint) : 0,
         ownedCards: Array.isArray(parsed.ownedCards) ? parsed.ownedCards : [],
         unlockedPackIds: Array.isArray(parsed.unlockedPackIds) ? parsed.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID],
         queue: Array.isArray(parsed.queue) ? parsed.queue : [],
@@ -1546,6 +1553,9 @@
 
   function handleCorrectAnswer(progress) {
     const earnedPoints = scoreWord(progress.word);
+    const battlePointAward = recordCorrectSpellingForBattlePoints();
+    const battleText = battlePointAward > 0 ? ` You earned ${battlePointAward} battle ${pluralise(battlePointAward, "point")}!` : "";
+
     progress.correctAttempts += 1;
     progress.correctStreak = Math.min(MASTERY_STREAK, Number(progress.correctStreak || 0) + 1);
     state.points += earnedPoints;
@@ -1554,13 +1564,25 @@
     if (progress.correctStreak >= MASTERY_STREAK && !progress.mastered) {
       progress.mastered = true;
       progress.masteredAt = Date.now();
-      setFeedback(`Correct! +${earnedPoints} ${pluralise(earnedPoints, "point")}. You mastered “${progress.word}”.`, "success");
+      setFeedback(`Correct! +${earnedPoints} ${pluralise(earnedPoints, "point")}. Mastered “${progress.word}”.${battleText}`, "success");
       return;
     }
 
     const wordGap = progress.correctStreak === 1 ? FIRST_CORRECT_REVIEW_GAP : SECOND_CORRECT_REVIEW_GAP;
     insertWordAfterGap(progress.word, wordGap);
-    setFeedback(`Correct! +${earnedPoints} ${pluralise(earnedPoints, "point")}. “${progress.word}” is now on a ${progress.correctStreak}/${MASTERY_STREAK} streak.`, "success");
+    setFeedback(`Correct! +${earnedPoints} ${pluralise(earnedPoints, "point")}. Streak: ${progress.correctStreak}/${MASTERY_STREAK}.${battleText}`, "success");
+  }
+
+  function recordCorrectSpellingForBattlePoints() {
+    state.correctSpellingsTowardBattlePoint = Number(state.correctSpellingsTowardBattlePoint || 0) + 1;
+    const awarded = Math.floor(state.correctSpellingsTowardBattlePoint / BATTLE_POINT_EVERY);
+
+    if (awarded > 0) {
+      state.battlePoints = Number(state.battlePoints || 0) + awarded;
+      state.correctSpellingsTowardBattlePoint %= BATTLE_POINT_EVERY;
+    }
+
+    return awarded;
   }
 
   function handleIncorrectAnswer(progress, answer) {
@@ -1579,6 +1601,8 @@
     elements.pointsTotal.textContent = state.points;
     elements.masteredTotal.textContent = masteredCount;
     elements.cardsTotal.textContent = ownedCount;
+    elements.battlePointsTotal.textContent = Number(state.battlePoints || 0);
+    elements.battlePointNextText.textContent = `${getCorrectSpellingsUntilBattlePoint()} correct to next battle point`;
     elements.shopOpenTotal.textContent = `${availableCount}/${CREATURE_CARD_TEMPLATES.length}`;
 
     if (!nextPack) {
@@ -1590,6 +1614,11 @@
     }
 
     renderDueBadge();
+  }
+
+  function getCorrectSpellingsUntilBattlePoint() {
+    const progress = Number(state.correctSpellingsTowardBattlePoint || 0);
+    return BATTLE_POINT_EVERY - (progress % BATTLE_POINT_EVERY);
   }
 
   function renderDueBadge() {
@@ -2127,6 +2156,8 @@ function scoreWord(word) {
     const restored = {
       ...makeInitialState(),
       ...savedState,
+      battlePoints: Number.isFinite(savedState.battlePoints) ? Math.max(0, savedState.battlePoints) : 0,
+      correctSpellingsTowardBattlePoint: Number.isFinite(savedState.correctSpellingsTowardBattlePoint) ? Math.max(0, savedState.correctSpellingsTowardBattlePoint) : 0,
       progress: savedState.progress && typeof savedState.progress === "object" ? savedState.progress : {},
       ownedCards: sanitiseOwnedCards(savedState.ownedCards || []),
       unlockedPackIds: Array.isArray(savedState.unlockedPackIds) ? savedState.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID]
@@ -2199,16 +2230,23 @@ function scoreWord(word) {
       elements.battleCardSelect.appendChild(option);
     }
 
-    const canBattle = Boolean(currentUser && supabaseClient && ownedCards.length > 0);
+    const battlePoints = Number(state.battlePoints || 0);
+    const canBattle = Boolean(currentUser && supabaseClient && ownedCards.length > 0 && battlePoints > 0 && !currentBattle);
     elements.battleCardSelect.disabled = !canBattle;
     elements.enterBattleButton.disabled = !canBattle;
 
+    if (elements.battlePointNextText) {
+      elements.battlePointNextText.textContent = `${getCorrectSpellingsUntilBattlePoint()} correct to next battle point`;
+    }
+
     if (!currentUser) {
-      elements.battleStatus.textContent = "Sign in to battle another player.";
+      elements.battleStatus.textContent = "Sign in to battle.";
     } else if (ownedCards.length === 0) {
-      elements.battleStatus.textContent = "Buy at least one card before entering the arena.";
+      elements.battleStatus.textContent = "Buy a card to battle.";
+    } else if (battlePoints <= 0) {
+      elements.battleStatus.textContent = `You need 1 battle point. ${getCorrectSpellingsUntilBattlePoint()} more correct spellings to earn one.`;
     } else if (!currentBattle) {
-      elements.battleStatus.textContent = "Choose one owned card to enter the arena.";
+      elements.battleStatus.textContent = `Ready. You have ${battlePoints} battle ${pluralise(battlePoints, "point")}.`;
     }
   }
 
@@ -2222,6 +2260,11 @@ function scoreWord(word) {
     const ownedSet = getOwnedIndexes();
     if (!Number.isInteger(cardIndex) || !ownedSet.has(cardIndex)) {
       elements.battleStatus.textContent = "Choose a card you own.";
+      return;
+    }
+
+    if (Number(state.battlePoints || 0) < 1) {
+      elements.battleStatus.textContent = `You need 1 battle point. ${getCorrectSpellingsUntilBattlePoint()} more correct spellings to earn one.`;
       return;
     }
 
@@ -2261,6 +2304,7 @@ function scoreWord(word) {
         return;
       }
 
+      spendBattlePoint();
       currentBattle = joinedBattle;
       renderMatchedBattle(joinedBattle);
       await resolveCurrentBattle();
@@ -2285,10 +2329,17 @@ function scoreWord(word) {
       return;
     }
 
+    spendBattlePoint();
     currentBattle = createdBattle;
-    elements.battleStatus.textContent = `Waiting for an opponent. Your ${CREATURE_CARD_TEMPLATES[cardIndex].name} has attack strength ${attackStrength}.`;
+    elements.battleStatus.textContent = `Waiting for an opponent. ${CREATURE_CARD_TEMPLATES[cardIndex].name} strength: ${attackStrength}.`;
     elements.battleOpponent.textContent = "";
     startBattlePolling(createdBattle.id);
+  }
+
+  function spendBattlePoint() {
+    state.battlePoints = Math.max(0, Number(state.battlePoints || 0) - 1);
+    saveState();
+    renderStats();
   }
 
   async function getOrCreateBattleStrength(cardIndex) {
@@ -2335,6 +2386,11 @@ function scoreWord(word) {
       } else if (data.status === "resolved") {
         stopBattlePolling();
         await showResolvedBattle(data);
+        await refreshCardsFromSupabase();
+        renderStats();
+        renderShop();
+        renderCollection();
+        renderPacks();
       }
     }, 2500);
   }
@@ -2347,19 +2403,16 @@ function scoreWord(word) {
   }
 
   function renderMatchedBattle(battle) {
-    const isChallenger = battle.challenger_id === currentUser.id;
-    const myCardIndex = isChallenger ? battle.challenger_card_index : battle.opponent_card_index;
-    const opponentCardIndex = isChallenger ? battle.opponent_card_index : battle.challenger_card_index;
-    const myAttack = isChallenger ? battle.challenger_attack : battle.opponent_attack;
-    const opponentAttack = isChallenger ? battle.opponent_attack : battle.challenger_attack;
-    const opponentName = isChallenger ? battle.opponent_name : battle.challenger_name;
-    const myCard = CREATURE_CARD_TEMPLATES[myCardIndex];
-    const opponentCard = CREATURE_CARD_TEMPLATES[opponentCardIndex];
-    const percent = myAttack / (myAttack + opponentAttack);
+    const perspective = getBattlePerspective(battle);
+    if (!perspective) {
+      return;
+    }
 
-    elements.battleStatus.textContent = `You are fighting with ${myCard.name} (${myAttack}).`;
-    elements.battleOpponent.textContent = `Opponent: ${opponentName || "Player"} with ${opponentCard.name} (${opponentAttack}).`;
-    renderBattleGrid(percent);
+    const myCard = CREATURE_CARD_TEMPLATES[perspective.myCardIndex];
+    const opponentCard = CREATURE_CARD_TEMPLATES[perspective.opponentCardIndex];
+    elements.battleStatus.textContent = `${myCard.name}: ${perspective.myAttack}`;
+    elements.battleOpponent.textContent = `${perspective.opponentName || "Opponent"}: ${opponentCard.name}, ${perspective.opponentAttack}`;
+    renderBattleGrid(perspective.userPercent);
   }
 
   async function resolveCurrentBattle() {
@@ -2369,48 +2422,115 @@ function scoreWord(word) {
 
     stopBattlePolling();
 
+    const battleBeforeResolve = { ...currentBattle };
     const { data, error } = await supabaseClient.rpc("resolve_battle", {
       p_battle_id: currentBattle.id
     });
 
     if (error) {
-      elements.battleResult.textContent = `Battle is matched, but the Supabase resolve_battle function is not ready yet: ${error.message}`;
+      elements.battleResult.textContent = `Battle matched, but resolve_battle is not ready: ${error.message}`;
       elements.enterBattleButton.disabled = false;
       return;
     }
 
     const resolved = Array.isArray(data) ? data[0] : data;
+    const result = { ...battleBeforeResolve, ...(resolved || {}) };
+    await showResolvedBattle(result);
     await refreshCardsFromSupabase();
     renderStats();
     renderShop();
     renderCollection();
     renderPacks();
-    await showResolvedBattle(resolved || currentBattle);
   }
 
   async function showResolvedBattle(result) {
     const winnerId = result.winner_id;
-    const loserId = result.loser_id;
     const didWin = winnerId === currentUser.id;
+    const perspective = getBattlePerspective(result);
+
+    if (perspective) {
+      renderMatchedBattle(result);
+      elements.battleResult.textContent = "Attack square spinning…";
+      const attackRoll = Number(result.result_roll);
+      const perspectiveRoll = Number.isFinite(attackRoll) ? (perspective.isChallenger ? attackRoll : 1 - attackRoll) : NaN;
+      await animateBattleAttack(perspective.userPercent, didWin, perspectiveRoll);
+    }
 
     elements.battleResult.textContent = didWin
-      ? "You won! Your opponent's card has been added to your collection."
-      : "You lost. Your battle card has been removed, but you can buy it again in the shop.";
+      ? "You won the card!"
+      : "You lost your card. You can buy it again.";
 
     currentBattle = null;
     elements.enterBattleButton.disabled = false;
     renderBattlePanel();
   }
 
-  function renderBattleGrid(userPercent) {
+  function getBattlePerspective(battle) {
+    if (!battle || !currentUser || !battle.opponent_id) {
+      return null;
+    }
+
+    const isChallenger = battle.challenger_id === currentUser.id;
+    const myCardIndex = isChallenger ? battle.challenger_card_index : battle.opponent_card_index;
+    const opponentCardIndex = isChallenger ? battle.opponent_card_index : battle.challenger_card_index;
+    const myAttack = isChallenger ? battle.challenger_attack : battle.opponent_attack;
+    const opponentAttack = isChallenger ? battle.opponent_attack : battle.challenger_attack;
+    const opponentName = isChallenger ? battle.opponent_name : battle.challenger_name;
+
+    if (!Number.isFinite(myAttack) || !Number.isFinite(opponentAttack)) {
+      return null;
+    }
+
+    return {
+      isChallenger,
+      myCardIndex,
+      opponentCardIndex,
+      myAttack,
+      opponentAttack,
+      opponentName,
+      userPercent: myAttack / (myAttack + opponentAttack)
+    };
+  }
+
+  function renderBattleGrid(userPercent, highlightedIndex = null) {
     elements.battleGrid.innerHTML = "";
     const redSquares = Math.round(clamp(userPercent, 0, 1) * 100);
 
     for (let index = 0; index < 100; index += 1) {
       const square = document.createElement("span");
       square.className = index < redSquares ? "battle-square is-user" : "battle-square is-opponent";
+      if (index === highlightedIndex) {
+        square.classList.add("is-highlighted");
+      }
       elements.battleGrid.appendChild(square);
     }
+  }
+
+  function animateBattleAttack(userPercent, didWin, resultRoll) {
+    const steps = 30;
+    const totalMs = 6000;
+    const redSquares = Math.max(1, Math.min(99, Math.round(clamp(userPercent, 0, 1) * 100)));
+    const winningPool = didWin
+      ? Array.from({ length: redSquares }, (_value, index) => index)
+      : Array.from({ length: 100 - redSquares }, (_value, index) => redSquares + index);
+    let targetIndex = Number.isFinite(resultRoll) ? Math.max(0, Math.min(99, Math.floor(resultRoll * 100))) : winningPool[randomInt(0, winningPool.length - 1)];
+
+    if (winningPool.indexOf(targetIndex) === -1) {
+      targetIndex = winningPool[randomInt(0, winningPool.length - 1)];
+    }
+    const sequence = Array.from({ length: steps - 1 }, () => randomInt(0, 99)).concat(targetIndex);
+
+    sequence.forEach((squareIndex, stepIndex) => {
+      const progress = stepIndex / (steps - 1);
+      const delay = Math.round(totalMs * progress * progress);
+      window.setTimeout(() => {
+        renderBattleGrid(userPercent, squareIndex);
+      }, delay);
+    });
+
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, totalMs + 250);
+    });
   }
 
   function randomInt(min, max) {
