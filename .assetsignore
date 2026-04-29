@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+.git/
+scripts/
+tests/
+package.json
+README.md
+LICENSE
