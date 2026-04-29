@@ -3,7 +3,7 @@
 A dependency-free web app that uses spaced repetition to help children practise spelling common English words.
 
 The word bank uses only the 3-letter-and-longer words from the two word-frequency lists in the chat. There are 171 unique words.
-
+ 
 ## Features
 
 - Spaced repetition review schedule based on intervening words, not clock time:
