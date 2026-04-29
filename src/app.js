@@ -10,8 +10,10 @@
   let currentMode = getInitialMode();
   let WORDS = WORD_BANKS[currentMode] || WORD_BANKS.normal;
 
-  const BASE_STORAGE_KEY = "dino-speller-state-v8";
+  const BASE_STORAGE_KEY = "dino-speller-state-v9";
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
+  const DEFAULT_VOICE_NAME = "Google UK English Male";
+  const DEFAULT_VOICE_LANG = "en-GB";
   const LEGACY_STORAGE_KEYS = [
     "dino-speller-state-v6",
     "dino-speller-state-v5",
@@ -24,9 +26,8 @@
   const MASTERY_STREAK = 3;
   const CARD_PRICE_STEP = 5;
   const CARD_PRICE_GROUP_SIZE = 5;
-  const INITIAL_SHOP_SIZE = 10;
-  const SHOP_BATCH_SIZE = 10;
-  const SHOP_REMAINING_TRIGGER = 5;
+  const INITIAL_UNLOCKED_PACK_ID = "prehistoric";
+  const PACK_UNLOCK_REMAINING_TRIGGER = 5;
   const ACTIVE_WORD_TARGET = 5;
   const FIRST_CORRECT_REVIEW_GAP = 4;
   const SECOND_CORRECT_REVIEW_GAP = 8;
@@ -34,7 +35,166 @@
   const AUTO_ADVANCE_MS = 1500;
   const WRONG_AUTO_ADVANCE_MS = 6500;
 
-  const CREATURE_CARD_TEMPLATES = Object.freeze([
+
+  const SIMPLE_SENTENCES = Object.freeze({
+    there: "The toy is over there.",
+    their: "The children packed their bags.",
+    one: "I ate one apple.",
+    two: "She has two shoes.",
+    would: "I would like to play.",
+    see: "I can see the moon.",
+    right: "That answer is right.",
+    which: "Which book should we read?",
+    know: "I know the answer.",
+    some: "Please take some paper.",
+    our: "This is our classroom.",
+    hour: "The lesson lasts one hour.",
+    week: "There are seven days in a week.",
+    eye: "I winked with one eye.",
+    new: "These shoes are new.",
+    for: "This present is for you.",
+    than: "A whale is bigger than a fish.",
+    then: "First wash your hands, then eat.",
+    its: "The dog wagged its tail.",
+    abrupt: "The story had an abrupt ending.",
+    absorb: "The sponge can absorb water.",
+    academy: "The academy teaches music and art.",
+    algorithm: "The robot follows an algorithm.",
+    ambiguous: "The clue was ambiguous.",
+    analysis: "The scientist wrote an analysis.",
+    architecture: "The city has beautiful architecture.",
+    atmosphere: "The atmosphere felt calm.",
+    beneficial: "Exercise is beneficial for your body.",
+    bizarre: "The dream was bizarre.",
+    chemistry: "Chemistry can explain reactions.",
+    coincidence: "Meeting there was a coincidence.",
+    consequence: "Every choice can have a consequence.",
+    controversial: "The idea was controversial.",
+    democracy: "In a democracy, people vote.",
+    dictionary: "I checked the word in a dictionary.",
+    discipline: "Practice takes discipline.",
+    efficient: "The new plan was efficient.",
+    environment: "We should protect the environment.",
+    extraordinary: "The view was extraordinary.",
+    frequently: "We frequently read together.",
+    geography: "Geography helps us study places.",
+    guarantee: "The ticket is a guarantee.",
+    independent: "The kitten became independent.",
+    ingredient: "Flour is an ingredient in bread.",
+    intelligent: "The puzzle was solved by an intelligent child.",
+    international: "The team played an international match.",
+    knowledge: "Reading builds knowledge.",
+    magnificent: "The mountain looked magnificent.",
+    mathematics: "Mathematics helps us solve problems.",
+    microscope: "We used a microscope in science.",
+    mysterious: "The cave was mysterious.",
+    necessary: "Sleep is necessary for health.",
+    opportunity: "The race was an opportunity to try.",
+    parallel: "The two lines are parallel.",
+    permanent: "Marker ink can be permanent.",
+    probability: "Probability helps us predict chance.",
+    questionnaire: "The class filled in a questionnaire.",
+    recommend: "I recommend this book.",
+    restaurant: "We ate dinner at a restaurant.",
+    rhythm: "The drummer kept the rhythm.",
+    separate: "Please separate the red cards.",
+    sufficient: "That is sufficient for today.",
+    temperature: "The temperature dropped overnight.",
+    thorough: "She did a thorough check.",
+    traditional: "The dance was traditional.",
+    vehicle: "A bus is a vehicle.",
+    voluntary: "The club is voluntary."
+  });
+
+  const CARD_PACKS = Object.freeze([
+    {
+      id: "prehistoric",
+      name: "Dinosaurs & Prehistoric Beasts",
+      shortName: "Dinosaurs",
+      description: "Dinosaurs, prehistoric hunters, and ancient giants.",
+      unlockHint: "Unlocked at the start."
+    },
+    {
+      id: "dangerous",
+      name: "Dangerous Animals & Sea Beasts",
+      shortName: "Dangerous Animals",
+      description: "Real-world predators, ocean monsters, and fierce wild animals.",
+      unlockHint: "Unlocks after you collect most of the Dinosaurs pack."
+    },
+    {
+      id: "mythical",
+      name: "Mythical Beasts & Monsters",
+      shortName: "Mythical Beasts",
+      description: "Dragons, hydras, griffins, unicorns, and legendary creatures.",
+      unlockHint: "Unlocks after you collect most of the Dangerous Animals pack."
+    },
+    {
+      id: "nature",
+      name: "Nature Wonders",
+      shortName: "Nature",
+      description: "Flowers, gentle animals, weather, space, and beautiful natural things.",
+      unlockHint: "Unlocks after you collect most of the Mythical Beasts pack."
+    }
+  ]);
+
+  function getPackIdForCard(template) {
+    if (template.packId) {
+      return template.packId;
+    }
+
+    if (["Dinosaur", "Prehistoric Beast"].includes(template.type)) {
+      return "prehistoric";
+    }
+
+    if (["Dangerous Animal", "Sea Beast", "Sea Monster", "Flying Beast"].includes(template.type)) {
+      return "dangerous";
+    }
+
+    if (["Mythic Monster", "Mythic Beast", "Monster", "Hybrid Boss", "Mythic Nature"].includes(template.type)) {
+      return "mythical";
+    }
+
+    return "nature";
+  }
+
+  function addPackToCard(template) {
+    return {
+      ...template,
+      packId: getPackIdForCard(template)
+    };
+  }
+
+
+  function makeNatureArtDataUri(title, emoji, backgroundStart, backgroundEnd) {
+    const safeTitle = title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 980">
+        <defs>
+          <radialGradient id="glow" cx="50%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.58"/>
+            <stop offset="42%" stop-color="${backgroundEnd}" stop-opacity="0.82"/>
+            <stop offset="100%" stop-color="${backgroundStart}" stop-opacity="1"/>
+          </radialGradient>
+          <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+            <stop offset="100%" stop-color="#000000" stop-opacity="0.22"/>
+          </linearGradient>
+        </defs>
+        <rect width="700" height="980" fill="url(#glow)"/>
+        <circle cx="120" cy="130" r="105" fill="#ffffff" opacity="0.16"/>
+        <circle cx="590" cy="210" r="150" fill="#ffffff" opacity="0.12"/>
+        <circle cx="350" cy="420" r="235" fill="#000000" opacity="0.10"/>
+        <path d="M0 760 C150 680 260 850 420 760 C560 680 620 710 700 640 L700 980 L0 980 Z" fill="#000000" opacity="0.18"/>
+        <text x="350" y="445" text-anchor="middle" dominant-baseline="middle" font-size="250">${emoji}</text>
+        <rect x="42" y="770" width="616" height="116" rx="36" fill="#000000" opacity="0.38"/>
+        <text x="350" y="840" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="900" fill="#fff8e7">${safeTitle}</text>
+        <rect x="10" y="10" width="680" height="960" rx="44" fill="none" stroke="url(#edge)" stroke-width="20"/>
+      </svg>`;
+
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
+  let CREATURE_CARD_TEMPLATES = Object.freeze([
     {
         "name": "Velociraptor",
         "slug": "velociraptor",
@@ -485,8 +645,460 @@
         "tagline": "Final boss hybrid",
         "description": "The biggest, baddest fictional predator in the whole deck.",
         "art": "src/card-art/indominus-rex.webp"
+    },
+    {
+        "name": "Rose",
+        "slug": "rose",
+        "type": "Flower",
+        "rarity": "Common",
+        "attack": 12,
+        "power": 18,
+        "tagline": "Velvet bloom",
+        "description": "A bright, classic flower card with soft petals and quiet confidence.",
+        "art": makeNatureArtDataUri("Rose", "\ud83c\udf39", "#7f1236", "#ff739a")
+    },
+    {
+        "name": "Sunflower",
+        "slug": "sunflower",
+        "type": "Flower",
+        "rarity": "Common",
+        "attack": 14,
+        "power": 22,
+        "tagline": "Sun tracker",
+        "description": "A cheerful golden giant that turns its face toward the light.",
+        "art": makeNatureArtDataUri("Sunflower", "\ud83c\udf3b", "#8a5511", "#ffd15b")
+    },
+    {
+        "name": "Bluebell",
+        "slug": "bluebell",
+        "type": "Flower",
+        "rarity": "Common",
+        "attack": 10,
+        "power": 16,
+        "tagline": "Woodland bell",
+        "description": "A delicate spring flower from cool, shady woods.",
+        "art": makeNatureArtDataUri("Bluebell", "\ud83e\udebb", "#27346b", "#9da7ff")
+    },
+    {
+        "name": "Lotus",
+        "slug": "lotus",
+        "type": "Flower",
+        "rarity": "Uncommon",
+        "attack": 16,
+        "power": 26,
+        "tagline": "Still water bloom",
+        "description": "A calm and beautiful flower rising from quiet water.",
+        "art": makeNatureArtDataUri("Lotus", "\ud83e\udeb7", "#125a5a", "#ff9dcb")
+    },
+    {
+        "name": "Cherry Blossom",
+        "slug": "cherry-blossom",
+        "type": "Flower",
+        "rarity": "Uncommon",
+        "attack": 13,
+        "power": 24,
+        "tagline": "Petal shower",
+        "description": "A gentle pink blossom that turns the sky into confetti.",
+        "art": makeNatureArtDataUri("Cherry Blossom", "\ud83c\udf38", "#7e335d", "#ffc1dc")
+    },
+    {
+        "name": "Oak Tree",
+        "slug": "oak-tree",
+        "type": "Tree",
+        "rarity": "Uncommon",
+        "attack": 20,
+        "power": 32,
+        "tagline": "Ancient roots",
+        "description": "A strong, patient tree with deep roots and wide branches.",
+        "art": makeNatureArtDataUri("Oak Tree", "\ud83c\udf33", "#214425", "#8fcf75")
+    },
+    {
+        "name": "Maple Leaf",
+        "slug": "maple-leaf",
+        "type": "Nature",
+        "rarity": "Common",
+        "attack": 15,
+        "power": 20,
+        "tagline": "Autumn spark",
+        "description": "A blazing autumn leaf full of colour and movement.",
+        "art": makeNatureArtDataUri("Maple Leaf", "\ud83c\udf41", "#7a2a11", "#ff9654")
+    },
+    {
+        "name": "Fern",
+        "slug": "fern",
+        "type": "Plant",
+        "rarity": "Common",
+        "attack": 11,
+        "power": 19,
+        "tagline": "Forest curl",
+        "description": "A curling green plant from damp and shadowy places.",
+        "art": makeNatureArtDataUri("Fern", "\ud83c\udf3f", "#103b2a", "#61c985")
+    },
+    {
+        "name": "Cactus",
+        "slug": "cactus",
+        "type": "Plant",
+        "rarity": "Uncommon",
+        "attack": 18,
+        "power": 28,
+        "tagline": "Desert survivor",
+        "description": "A tough desert plant that stores water and wears spikes.",
+        "art": makeNatureArtDataUri("Cactus", "\ud83c\udf35", "#21401f", "#9dd86c")
+    },
+    {
+        "name": "Water Lily",
+        "slug": "water-lily",
+        "type": "Flower",
+        "rarity": "Uncommon",
+        "attack": 14,
+        "power": 25,
+        "tagline": "Pond jewel",
+        "description": "A beautiful floating flower resting on still pond water.",
+        "art": makeNatureArtDataUri("Water Lily", "\ud83e\udeb7", "#164168", "#79d4ff")
+    },
+    {
+        "name": "Red Fox",
+        "slug": "red-fox",
+        "type": "Animal",
+        "rarity": "Uncommon",
+        "attack": 28,
+        "power": 30,
+        "tagline": "Clever paws",
+        "description": "A quick, curious woodland animal with a fiery coat.",
+        "art": makeNatureArtDataUri("Red Fox", "\ud83e\udd8a", "#6e2d10", "#ff934d")
+    },
+    {
+        "name": "Snow Leopard",
+        "slug": "snow-leopard",
+        "type": "Animal",
+        "rarity": "Rare",
+        "attack": 36,
+        "power": 42,
+        "tagline": "Mountain ghost",
+        "description": "A silent spotted cat from cold high mountains.",
+        "art": makeNatureArtDataUri("Snow Leopard", "\ud83d\udc06", "#2f415b", "#dce8ff")
+    },
+    {
+        "name": "Dolphin",
+        "slug": "dolphin",
+        "type": "Animal",
+        "rarity": "Uncommon",
+        "attack": 30,
+        "power": 38,
+        "tagline": "Wave dancer",
+        "description": "A clever ocean mammal that leaps through blue water.",
+        "art": makeNatureArtDataUri("Dolphin", "\ud83d\udc2c", "#124d78", "#77d8ff")
+    },
+    {
+        "name": "Sea Turtle",
+        "slug": "sea-turtle",
+        "type": "Animal",
+        "rarity": "Uncommon",
+        "attack": 24,
+        "power": 36,
+        "tagline": "Ancient swimmer",
+        "description": "A peaceful traveller crossing warm seas for many years.",
+        "art": makeNatureArtDataUri("Sea Turtle", "\ud83d\udc22", "#12594f", "#8ee4bc")
+    },
+    {
+        "name": "Peacock",
+        "slug": "peacock",
+        "type": "Bird",
+        "rarity": "Rare",
+        "attack": 28,
+        "power": 39,
+        "tagline": "Fan of colour",
+        "description": "A dazzling bird with a spectacular tail display.",
+        "art": makeNatureArtDataUri("Peacock", "\ud83e\udd9a", "#193b5d", "#7fe0d4")
+    },
+    {
+        "name": "Hummingbird",
+        "slug": "hummingbird",
+        "type": "Bird",
+        "rarity": "Rare",
+        "attack": 26,
+        "power": 34,
+        "tagline": "Hover jewel",
+        "description": "A tiny, brilliant bird that hovers like a living gem.",
+        "art": makeNatureArtDataUri("Hummingbird", "\ud83d\udc26", "#14514a", "#88f0a6")
+    },
+    {
+        "name": "Barn Owl",
+        "slug": "barn-owl",
+        "type": "Bird",
+        "rarity": "Uncommon",
+        "attack": 30,
+        "power": 35,
+        "tagline": "Silent wings",
+        "description": "A pale night hunter that flies almost without sound.",
+        "art": makeNatureArtDataUri("Barn Owl", "\ud83e\udd89", "#3c2b1f", "#e8cda2")
+    },
+    {
+        "name": "Monarch Butterfly",
+        "slug": "monarch-butterfly",
+        "type": "Insect",
+        "rarity": "Rare",
+        "attack": 18,
+        "power": 27,
+        "tagline": "Orange wings",
+        "description": "A delicate traveller with bold patterned wings.",
+        "art": makeNatureArtDataUri("Monarch Butterfly", "\ud83e\udd8b", "#4d2147", "#ff9b54")
+    },
+    {
+        "name": "Dragonfly",
+        "slug": "dragonfly",
+        "type": "Insect",
+        "rarity": "Uncommon",
+        "attack": 20,
+        "power": 26,
+        "tagline": "Glass wings",
+        "description": "A fast pond-skimmer with shimmering transparent wings.",
+        "art": makeNatureArtDataUri("Dragonfly", "\ud83e\udeb0", "#1f5872", "#93f1ff")
+    },
+    {
+        "name": "Hedgehog",
+        "slug": "hedgehog",
+        "type": "Animal",
+        "rarity": "Common",
+        "attack": 20,
+        "power": 29,
+        "tagline": "Tiny wanderer",
+        "description": "A small night-time snuffler with a coat of little spines.",
+        "art": makeNatureArtDataUri("Hedgehog", "\ud83e\udd94", "#4b2d1e", "#d9a56d")
+    },
+    {
+        "name": "Giant Panda",
+        "slug": "giant-panda",
+        "type": "Animal",
+        "rarity": "Rare",
+        "attack": 24,
+        "power": 40,
+        "tagline": "Bamboo guardian",
+        "description": "A gentle black-and-white bear that loves bamboo.",
+        "art": makeNatureArtDataUri("Giant Panda", "\ud83d\udc3c", "#222831", "#f3f4f0")
+    },
+    {
+        "name": "Koala",
+        "slug": "koala",
+        "type": "Animal",
+        "rarity": "Uncommon",
+        "attack": 18,
+        "power": 30,
+        "tagline": "Eucalyptus napper",
+        "description": "A sleepy tree-climbing animal with soft grey fur.",
+        "art": makeNatureArtDataUri("Koala", "\ud83d\udc28", "#3d4653", "#c9d1dc")
+    },
+    {
+        "name": "Red Squirrel",
+        "slug": "red-squirrel",
+        "type": "Animal",
+        "rarity": "Common",
+        "attack": 19,
+        "power": 25,
+        "tagline": "Treetop jumper",
+        "description": "A lively little acrobat with a bushy tail.",
+        "art": makeNatureArtDataUri("Red Squirrel", "\ud83d\udc3f\ufe0f", "#6d3516", "#e99555")
+    },
+    {
+        "name": "Seahorse",
+        "slug": "seahorse",
+        "type": "Sea Animal",
+        "rarity": "Uncommon",
+        "attack": 18,
+        "power": 28,
+        "tagline": "Tiny sea knight",
+        "description": "A strange and delicate sea creature with a curled tail.",
+        "art": makeNatureArtDataUri("Seahorse", "\ud83d\udc20", "#14546c", "#8ee3ff")
+    },
+    {
+        "name": "Starfish",
+        "slug": "starfish",
+        "type": "Sea Animal",
+        "rarity": "Common",
+        "attack": 14,
+        "power": 23,
+        "tagline": "Tidepool star",
+        "description": "A bright sea star from shallow pools and sandy shores.",
+        "art": makeNatureArtDataUri("Starfish", "\u2b50", "#8c4020", "#ffb36b")
+    },
+    {
+        "name": "Clownfish",
+        "slug": "clownfish",
+        "type": "Sea Animal",
+        "rarity": "Common",
+        "attack": 18,
+        "power": 25,
+        "tagline": "Reef friend",
+        "description": "A bright little fish that lives among waving anemones.",
+        "art": makeNatureArtDataUri("Clownfish", "\ud83d\udc20", "#0d5766", "#ff9c43")
+    },
+    {
+        "name": "Chameleon",
+        "slug": "chameleon",
+        "type": "Animal",
+        "rarity": "Rare",
+        "attack": 22,
+        "power": 33,
+        "tagline": "Colour shifter",
+        "description": "A clever lizard with a curling tail and changing colours.",
+        "art": makeNatureArtDataUri("Chameleon", "\ud83e\udd8e", "#245b2d", "#9fe36d")
+    },
+    {
+        "name": "Axolotl",
+        "slug": "axolotl",
+        "type": "Animal",
+        "rarity": "Rare",
+        "attack": 18,
+        "power": 31,
+        "tagline": "Water sprite",
+        "description": "A smiling amphibian with feathery gills and surprising charm.",
+        "art": makeNatureArtDataUri("Axolotl", "\ud83e\udd8e", "#67416f", "#ffb6d8")
+    },
+    {
+        "name": "Honeybee",
+        "slug": "honeybee",
+        "type": "Insect",
+        "rarity": "Common",
+        "attack": 15,
+        "power": 24,
+        "tagline": "Pollen helper",
+        "description": "A tiny striped worker that helps flowers grow.",
+        "art": makeNatureArtDataUri("Honeybee", "\ud83d\udc1d", "#5f4510", "#ffd766")
+    },
+    {
+        "name": "Ladybird",
+        "slug": "ladybird",
+        "type": "Insect",
+        "rarity": "Common",
+        "attack": 12,
+        "power": 20,
+        "tagline": "Spotted luck",
+        "description": "A small red beetle with black spots and garden charm.",
+        "art": makeNatureArtDataUri("Ladybird", "\ud83d\udc1e", "#641818", "#ff6b6b")
+    },
+    {
+        "name": "Coral Reef",
+        "slug": "coral-reef",
+        "type": "Nature",
+        "rarity": "Rare",
+        "attack": 24,
+        "power": 42,
+        "tagline": "Underwater city",
+        "description": "A colourful living world filled with fish and hidden shapes.",
+        "art": makeNatureArtDataUri("Coral Reef", "\ud83e\udeb8", "#174b6d", "#ff8fb3")
+    },
+    {
+        "name": "Waterfall",
+        "slug": "waterfall",
+        "type": "Nature",
+        "rarity": "Uncommon",
+        "attack": 28,
+        "power": 36,
+        "tagline": "White water",
+        "description": "A rushing curtain of water tumbling into mist.",
+        "art": makeNatureArtDataUri("Waterfall", "\ud83d\udca7", "#16456c", "#8fdcff")
+    },
+    {
+        "name": "Rainbow",
+        "slug": "rainbow",
+        "type": "Nature",
+        "rarity": "Rare",
+        "attack": 20,
+        "power": 35,
+        "tagline": "Sky bridge",
+        "description": "A bright arc of colour after rain and sunlight meet.",
+        "art": makeNatureArtDataUri("Rainbow", "\ud83c\udf08", "#47306d", "#ffd36b")
+    },
+    {
+        "name": "Aurora",
+        "slug": "aurora",
+        "type": "Nature",
+        "rarity": "Epic",
+        "attack": 24,
+        "power": 44,
+        "tagline": "Dancing sky",
+        "description": "Green and purple lights flowing across the polar night.",
+        "art": makeNatureArtDataUri("Aurora", "\u2728", "#133458", "#88ffd8")
+    },
+    {
+        "name": "Crystal Cave",
+        "slug": "crystal-cave",
+        "type": "Nature",
+        "rarity": "Rare",
+        "attack": 22,
+        "power": 41,
+        "tagline": "Hidden sparkle",
+        "description": "A secret cave glittering with sharp blue crystals.",
+        "art": makeNatureArtDataUri("Crystal Cave", "\ud83d\udc8e", "#243b6b", "#9fd6ff")
+    },
+    {
+        "name": "Volcano",
+        "slug": "volcano",
+        "type": "Nature",
+        "rarity": "Rare",
+        "attack": 35,
+        "power": 45,
+        "tagline": "Earth fire",
+        "description": "A powerful mountain glowing with heat and molten rock.",
+        "art": makeNatureArtDataUri("Volcano", "\ud83c\udf0b", "#4a1814", "#ff8347")
+    },
+    {
+        "name": "Snowflake",
+        "slug": "snowflake",
+        "type": "Nature",
+        "rarity": "Common",
+        "attack": 10,
+        "power": 21,
+        "tagline": "Winter pattern",
+        "description": "A tiny frozen star with perfect icy branches.",
+        "art": makeNatureArtDataUri("Snowflake", "\u2744\ufe0f", "#25415e", "#d5f2ff")
+    },
+    {
+        "name": "Moon",
+        "slug": "moon",
+        "type": "Nature",
+        "rarity": "Uncommon",
+        "attack": 18,
+        "power": 32,
+        "tagline": "Night lantern",
+        "description": "A silver companion shining over quiet rooftops.",
+        "art": makeNatureArtDataUri("Moon", "\ud83c\udf19", "#243049", "#e7e7cf")
+    },
+    {
+        "name": "Comet",
+        "slug": "comet",
+        "type": "Space",
+        "rarity": "Rare",
+        "attack": 32,
+        "power": 43,
+        "tagline": "Sky traveller",
+        "description": "A bright icy visitor streaking through the night.",
+        "art": makeNatureArtDataUri("Comet", "\u2604\ufe0f", "#262350", "#ffbd6b")
+    },
+    {
+        "name": "Orchid",
+        "slug": "orchid",
+        "type": "Flower",
+        "rarity": "Rare",
+        "attack": 15,
+        "power": 30,
+        "tagline": "Rare bloom",
+        "description": "A delicate, unusual flower with elegant colours.",
+        "art": makeNatureArtDataUri("Orchid", "\ud83c\udf3a", "#55265b", "#ff9ef1")
+    },
+    {
+        "name": "Unicorn",
+        "slug": "unicorn",
+        "type": "Mythic Nature",
+        "rarity": "Mythic",
+        "attack": 40,
+        "power": 60,
+        "tagline": "Rainbow legend",
+        "description": "A magical white horse with a shining horn and gentle power.",
+        "art": makeNatureArtDataUri("Unicorn", "\ud83e\udd84", "#443070", "#ffd1ff"),
+        "price": 40
     }
-]);
+].map(addPackToCard));
 
   const CONTEXT_CLUES = Object.freeze({
     there: "Clue: The toy is over ___.",
@@ -544,7 +1156,23 @@
     collectionBadge: document.querySelector("#collectionBadge"),
     collectionGrid: document.querySelector("#collectionGrid"),
     shopCardTemplate: document.querySelector("#shopCardTemplate"),
-    collectionCardTemplate: document.querySelector("#collectionCardTemplate")
+    collectionCardTemplate: document.querySelector("#collectionCardTemplate"),
+    authPanel: document.querySelector("#authPanel"),
+    authEmail: document.querySelector("#authEmail"),
+    authPassword: document.querySelector("#authPassword"),
+    signInButton: document.querySelector("#signInButton"),
+    signUpButton: document.querySelector("#signUpButton"),
+    signOutButton: document.querySelector("#signOutButton"),
+    authStatus: document.querySelector("#authStatus"),
+    packGrid: document.querySelector("#packGrid"),
+    packStatusBadge: document.querySelector("#packStatusBadge"),
+    battlePanel: document.querySelector("#battlePanel"),
+    battleCardSelect: document.querySelector("#battleCardSelect"),
+    enterBattleButton: document.querySelector("#enterBattleButton"),
+    battleStatus: document.querySelector("#battleStatus"),
+    battleOpponent: document.querySelector("#battleOpponent"),
+    battleGrid: document.querySelector("#battleGrid"),
+    battleResult: document.querySelector("#battleResult")
   };
 
   let state = loadState();
@@ -552,11 +1180,17 @@
   let autoAdvanceTimer = null;
   let availableVoices = [];
   let lastPurchasedIndex = null;
+  let supabaseClient = null;
+  let currentUser = null;
+  let remoteSaveTimer = null;
+  let currentBattle = null;
+  let battlePollTimer = null;
 
   initialise();
 
   function initialise() {
     elements.form.addEventListener("submit", handleSubmit);
+    elements.answerInput.addEventListener("keydown", handleAnswerKeydown);
     elements.speakButton.addEventListener("click", speakCurrentWord);
     elements.hintButton.addEventListener("click", showHint);
     elements.skipButton.addEventListener("click", skipCurrentWord);
@@ -564,13 +1198,20 @@
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
     elements.modeSelect.addEventListener("change", handleModeChange);
+    elements.signInButton.addEventListener("click", signInUser);
+    elements.signUpButton.addEventListener("click", signUpUser);
+    elements.signOutButton.addEventListener("click", signOutUser);
+    elements.enterBattleButton.addEventListener("click", enterBattleArena);
 
     setupModeSelector();
     setupVoicePicker();
+    initialiseSupabase();
     selectNextWord();
     renderStats();
     renderShop();
     renderCollection();
+    renderPacks();
+    renderBattlePanel();
     renderDueBadge();
   }
 
@@ -611,6 +1252,8 @@
     renderStats();
     renderShop();
     renderCollection();
+    renderPacks();
+    renderBattlePanel();
   }
 
   function makeBlankProgress(word) {
@@ -628,10 +1271,11 @@
 
   function makeInitialState() {
     const initialState = {
-      version: 7,
+      version: 9,
       points: 0,
       lifetimePoints: 0,
       ownedCards: [],
+      unlockedPackIds: [INITIAL_UNLOCKED_PACK_ID],
       queue: [],
       turn: 0,
       progress: WORDS.reduce((acc, word) => {
@@ -663,6 +1307,7 @@
         points: Number.isFinite(parsed.points) ? Math.max(0, parsed.points) : 0,
         lifetimePoints: Number.isFinite(parsed.lifetimePoints) ? Math.max(0, parsed.lifetimePoints) : 0,
         ownedCards: Array.isArray(parsed.ownedCards) ? parsed.ownedCards : [],
+        unlockedPackIds: Array.isArray(parsed.unlockedPackIds) ? parsed.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID],
         queue: Array.isArray(parsed.queue) ? parsed.queue : [],
         turn: Number.isFinite(parsed.turn) ? parsed.turn : 0,
         progress: parsed.progress && typeof parsed.progress === "object" ? parsed.progress : {}
@@ -705,6 +1350,7 @@
         loaded.lifetimePoints = Math.max(loaded.lifetimePoints, calculateEarnedPoints(loaded));
       }
 
+      ensurePackUnlockState(loaded);
       cleanQueue(loaded);
 
       if (loaded.queue.length === 0) {
@@ -726,6 +1372,7 @@
 
   function saveState() {
     window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+    queueRemoteProgressSave();
   }
 
   function resetProgress() {
@@ -744,6 +1391,8 @@
     renderStats();
     renderShop();
     renderCollection();
+    renderPacks();
+    renderBattlePanel();
   }
 
   function selectNextWord() {
@@ -852,6 +1501,18 @@
     state.queue.splice(insertionIndex, 0, word);
   }
 
+  function handleAnswerKeydown(event) {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!elements.answerInput.disabled && elements.answerInput.value.trim()) {
+      elements.form.requestSubmit();
+    }
+  }
+
   function handleSubmit(event) {
     event.preventDefault();
     if (!currentWord) {
@@ -877,6 +1538,8 @@
     renderStats();
     renderShop();
     renderCollection();
+    renderPacks();
+    renderBattlePanel();
     lockPracticeControls();
     autoAdvanceTimer = window.setTimeout(selectNextWord, wasCorrect ? AUTO_ADVANCE_MS : WRONG_AUTO_ADVANCE_MS);
   }
@@ -909,22 +1572,21 @@
   function renderStats() {
     const masteredCount = WORDS.filter((word) => state.progress[word].mastered).length;
     const ownedCount = state.ownedCards.length;
-    const availableCount = getAvailableCardCount();
-    const nextExpansionTarget = getNextShopExpansionTarget();
+    const availableCount = getAvailableCardIndexes().length;
+    const nextPack = getNextLockedPack();
+    const currentPackProgress = getCurrentPackProgress();
 
     elements.pointsTotal.textContent = state.points;
     elements.masteredTotal.textContent = masteredCount;
     elements.cardsTotal.textContent = ownedCount;
     elements.shopOpenTotal.textContent = `${availableCount}/${CREATURE_CARD_TEMPLATES.length}`;
-    elements.modeWordTotal.textContent = `${getModeLabel(currentMode)} · ${WORDS.length} words`;
 
-    if (nextExpansionTarget === null) {
-      elements.nextShopText.textContent = "All cards released";
+    if (!nextPack) {
+      elements.nextShopText.textContent = "All packs unlocked";
       elements.shopProgress.style.width = "100%";
     } else {
-      const progress = clamp(state.ownedCards.length, 0, nextExpansionTarget);
-      elements.nextShopText.textContent = `${progress} / ${nextExpansionTarget} owned`;
-      elements.shopProgress.style.width = `${(progress / nextExpansionTarget) * 100}%`;
+      elements.nextShopText.textContent = `${currentPackProgress.owned} / ${currentPackProgress.target} in ${currentPackProgress.pack.shortName}`;
+      elements.shopProgress.style.width = `${currentPackProgress.target === 0 ? 100 : (currentPackProgress.owned / currentPackProgress.target) * 100}%`;
     }
 
     renderDueBadge();
@@ -935,24 +1597,25 @@
   }
 
   function renderShop() {
-    const availableCount = getAvailableCardCount();
-    const nextExpansionTarget = getNextShopExpansionTarget();
+    const availableIndexes = new Set(getAvailableCardIndexes());
+    const nextPack = getNextLockedPack();
     const ownedSet = new Set(state.ownedCards.map((card) => card.index));
 
     elements.shopGrid.innerHTML = "";
-    elements.shopStatusBadge.textContent = `${availableCount} available now`;
+    elements.shopStatusBadge.textContent = `${availableIndexes.size} cards available`;
 
-    if (nextExpansionTarget === null) {
-      elements.shopMessage.textContent = `All ${CREATURE_CARD_TEMPLATES.length} cards are open in the shop.`;
+    if (nextPack) {
+      const progress = getCurrentPackProgress();
+      const remaining = Math.max(0, progress.target - progress.owned);
+      elements.shopMessage.textContent = remaining === 1
+        ? `Buy 1 more card from ${progress.pack.name} to unlock ${nextPack.name}.`
+        : `Buy ${remaining} more cards from ${progress.pack.name} to unlock ${nextPack.name}.`;
     } else {
-      const needed = Math.max(0, nextExpansionTarget - state.ownedCards.length);
-      elements.shopMessage.textContent = needed === 1
-        ? "Buy 1 more card and the next wave will unlock."
-        : `Buy ${needed} more cards and the next wave will unlock.`;
+      elements.shopMessage.textContent = "All card packs are unlocked.";
     }
 
     CREATURE_CARD_TEMPLATES.forEach((template, index) => {
-      const released = index < availableCount;
+      const released = availableIndexes.has(index);
       const owned = ownedSet.has(index);
       const cardCost = getCardCost(index);
       const affordable = state.points >= cardCost;
@@ -961,7 +1624,7 @@
       const button = node.querySelector("button");
 
       if (released && owned) {
-        populateRevealedCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`, getCardCost(index));
+        populateRevealedCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`, cardCost);
         article.classList.add("is-owned");
         if (index === lastPurchasedIndex) {
           article.classList.add("is-flipping");
@@ -972,7 +1635,7 @@
         button.textContent = "Owned";
         button.disabled = true;
       } else if (released) {
-        populateMysteryCardNode(node, template, `Card ${index + 1} of ${CREATURE_CARD_TEMPLATES.length}`, cardCost);
+        populateMysteryCardNode(node, template, `${getPackById(template.packId).shortName} pack`, cardCost);
         article.classList.add("is-mystery");
         button.dataset.cardIndex = String(index);
         if (affordable) {
@@ -984,9 +1647,9 @@
           article.classList.add("is-unaffordable");
         }
       } else {
-        populateLockedCardNode(node);
+        populateLockedCardNode(node, template);
         article.classList.add("is-locked");
-        button.textContent = "Locked";
+        button.textContent = "Pack locked";
         button.disabled = true;
       }
 
@@ -1003,6 +1666,7 @@
       empty.textContent = "No cards bought yet. Keep spelling words correctly and spend your points in the shop.";
       elements.collectionGrid.appendChild(empty);
       elements.collectionBadge.textContent = "No cards yet";
+      renderBattlePanel();
       return;
     }
 
@@ -1019,6 +1683,8 @@
         node.querySelector(".monster-card__cost").textContent = "Owned";
         elements.collectionGrid.appendChild(node);
       });
+
+    renderBattlePanel();
   }
 
   function populateRevealedCardNode(node, template, metaText, cardCost) {
@@ -1045,12 +1711,12 @@
     image.removeAttribute("src");
     image.alt = "";
 
-    node.querySelector(".monster-card__art-badge").textContent = "?";
-    node.querySelector(".monster-card__tagline").textContent = "Mystery card";
+    node.querySelector(".monster-card__art-badge").textContent = "Mystery";
+    node.querySelector(".monster-card__tagline").textContent = "Buy to reveal";
     node.querySelector(".monster-card__type").textContent = "Hidden";
     node.querySelector(".monster-card__rarity-pill").textContent = "???";
     node.querySelector(".monster-card__title").textContent = template.name;
-    node.querySelector(".monster-card__description").textContent = "Buy this card to flip it over and reveal the artwork, rarity, ATK, and PWR.";
+    node.querySelector(".monster-card__description").textContent = "A mystery card. Buy it to flip the card and reveal the artwork, type, rarity, ATK, and PWR.";
     node.querySelector(".monster-card__attack").textContent = "?";
     node.querySelector(".monster-card__power").textContent = "?";
     node.querySelector(".monster-card__rarity-short").textContent = "?";
@@ -1058,17 +1724,18 @@
     node.querySelector(".monster-card__cost").textContent = `${cardCost} pts`;
   }
 
-  function populateLockedCardNode(node) {
+  function populateLockedCardNode(node, template) {
     const image = node.querySelector(".monster-card__image");
     image.removeAttribute("src");
     image.alt = "";
 
-    node.querySelector(".monster-card__art-badge").textContent = "Locked";
-    node.querySelector(".monster-card__tagline").textContent = "Future creature";
+    const pack = getPackById(template.packId);
+    node.querySelector(".monster-card__art-badge").textContent = "Pack locked";
+    node.querySelector(".monster-card__tagline").textContent = pack ? pack.shortName : "Locked";
     node.querySelector(".monster-card__type").textContent = "Locked";
     node.querySelector(".monster-card__rarity-pill").textContent = "???";
     node.querySelector(".monster-card__title").textContent = "???";
-    node.querySelector(".monster-card__description").textContent = "Buy more cards to reveal the next wave of terrifying creatures.";
+    node.querySelector(".monster-card__description").textContent = pack ? `Unlock ${pack.name} to reveal this card.` : "Unlock another pack to reveal this card.";
     node.querySelector(".monster-card__attack").textContent = "—";
     node.querySelector(".monster-card__power").textContent = "—";
     node.querySelector(".monster-card__rarity-short").textContent = "—";
@@ -1076,7 +1743,7 @@
     node.querySelector(".monster-card__cost").textContent = "—";
   }
 
-  function handleShopClick(event) {
+function handleShopClick(event) {
     const button = event.target.closest("button[data-card-index]");
     if (!button) {
       return;
@@ -1085,12 +1752,12 @@
     buyCard(Number(button.dataset.cardIndex));
   }
 
-  function buyCard(cardIndex) {
-    const availableCount = getAvailableCardCount();
+  async function buyCard(cardIndex) {
+    const availableIndexes = new Set(getAvailableCardIndexes());
     const ownedSet = new Set(state.ownedCards.map((card) => card.index));
 
-    if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= availableCount) {
-      setShopFlash("That card is not available yet.", "error");
+    if (!Number.isInteger(cardIndex) || !availableIndexes.has(cardIndex)) {
+      setShopFlash("That card is not available yet. Unlock its pack first.", "error");
       return;
     }
 
@@ -1106,23 +1773,30 @@
       return;
     }
 
-    const before = availableCount;
     state.points -= cardCost;
     state.ownedCards.push({ index: cardIndex, purchasedAt: Date.now() });
     lastPurchasedIndex = cardIndex;
 
-    const after = getAvailableCardCount();
-    const unlockedMore = after > before;
+    const unlockedPack = unlockEligiblePacks(state);
     saveState();
+    await upsertUserCard(cardIndex);
     renderStats();
     renderShop();
     renderCollection();
+    renderPacks();
+    renderBattlePanel();
 
     const template = CREATURE_CARD_TEMPLATES[cardIndex];
-    setShopFlash(`Bought ${template.name} for ${cardCost} ${pluralise(cardCost, "point")}.${unlockedMore ? " Ten more cards just unlocked!" : ""}`, "success");
+    const unlockText = unlockedPack ? ` ${unlockedPack.name} just unlocked!` : "";
+    setShopFlash(`Bought ${template.name} for ${cardCost} ${pluralise(cardCost, "point")}.${unlockText}`, "success");
   }
 
   function getCardCost(cardIndex) {
+    const template = CREATURE_CARD_TEMPLATES[cardIndex];
+    if (template && Number.isFinite(template.price)) {
+      return template.price;
+    }
+
     return (Math.floor(cardIndex / CARD_PRICE_GROUP_SIZE) + 1) * CARD_PRICE_STEP;
   }
 
@@ -1134,19 +1808,129 @@
     return total;
   }
 
-  function getAvailableCardCount() {
-    const totalCards = CREATURE_CARD_TEMPLATES.length;
-    const ownedCount = state.ownedCards.length;
-    const wavesOpen = Math.floor((ownedCount + SHOP_REMAINING_TRIGGER) / SHOP_BATCH_SIZE) + 1;
-    return clamp(INITIAL_SHOP_SIZE + (wavesOpen - 1) * SHOP_BATCH_SIZE, INITIAL_SHOP_SIZE, totalCards);
+  function getAvailableCardIndexes() {
+    const unlocked = new Set(state.unlockedPackIds || [INITIAL_UNLOCKED_PACK_ID]);
+    return CREATURE_CARD_TEMPLATES
+      .map((card, index) => unlocked.has(card.packId) ? index : null)
+      .filter((index) => index !== null);
   }
 
-  function getNextShopExpansionTarget() {
-    const availableCount = getAvailableCardCount();
-    if (availableCount >= CREATURE_CARD_TEMPLATES.length) {
-      return null;
+  function isPackUnlocked(packId) {
+    return (state.unlockedPackIds || []).includes(packId);
+  }
+
+  function getPackById(packId) {
+    return CARD_PACKS.find((pack) => pack.id === packId);
+  }
+
+  function getNextLockedPack() {
+    return CARD_PACKS.find((pack) => !isPackUnlocked(pack.id)) || null;
+  }
+
+  function getLastUnlockedPack() {
+    const unlocked = state.unlockedPackIds || [INITIAL_UNLOCKED_PACK_ID];
+    const lastUnlockedId = unlocked[unlocked.length - 1] || INITIAL_UNLOCKED_PACK_ID;
+    return getPackById(lastUnlockedId) || CARD_PACKS[0];
+  }
+
+  function getCardsInPack(packId) {
+    return CREATURE_CARD_TEMPLATES
+      .map((card, index) => card.packId === packId ? index : null)
+      .filter((index) => index !== null);
+  }
+
+  function getOwnedIndexes() {
+    return new Set(state.ownedCards.map((card) => card.index));
+  }
+
+  function getCurrentPackProgress() {
+    const currentPack = getLastUnlockedPack();
+    const packCards = getCardsInPack(currentPack.id);
+    const ownedIndexes = getOwnedIndexes();
+    const ownedInPack = packCards.filter((index) => ownedIndexes.has(index)).length;
+    const target = Math.max(0, packCards.length - PACK_UNLOCK_REMAINING_TRIGGER);
+
+    return {
+      pack: currentPack,
+      owned: clamp(ownedInPack, 0, target),
+      target,
+      total: packCards.length
+    };
+  }
+
+  function ensurePackUnlockState(targetState) {
+    const validPackIds = new Set(CARD_PACKS.map((pack) => pack.id));
+    targetState.unlockedPackIds = Array.isArray(targetState.unlockedPackIds)
+      ? targetState.unlockedPackIds.filter((packId) => validPackIds.has(packId))
+      : [];
+
+    if (targetState.unlockedPackIds.length === 0) {
+      targetState.unlockedPackIds = [INITIAL_UNLOCKED_PACK_ID];
     }
-    return availableCount - SHOP_REMAINING_TRIGGER;
+
+    const ownedIndexes = new Set((targetState.ownedCards || []).map((card) => card.index));
+    for (const cardIndex of ownedIndexes) {
+      const packId = CREATURE_CARD_TEMPLATES[cardIndex] && CREATURE_CARD_TEMPLATES[cardIndex].packId;
+      const packIndex = CARD_PACKS.findIndex((pack) => pack.id === packId);
+      for (let index = 0; index <= packIndex; index += 1) {
+        const unlockId = CARD_PACKS[index].id;
+        if (!targetState.unlockedPackIds.includes(unlockId)) {
+          targetState.unlockedPackIds.push(unlockId);
+        }
+      }
+    }
+
+    unlockEligiblePacks(targetState);
+  }
+
+  function unlockEligiblePacks(targetState) {
+    const originalState = state;
+    if (targetState !== state) {
+      state = targetState;
+    }
+
+    let newlyUnlockedPack = null;
+    const nextPack = getNextLockedPack();
+    if (nextPack) {
+      const progress = getCurrentPackProgress();
+      if (progress.owned >= progress.target) {
+        state.unlockedPackIds.push(nextPack.id);
+        newlyUnlockedPack = nextPack;
+      }
+    }
+
+    if (targetState !== originalState) {
+      targetState.unlockedPackIds = state.unlockedPackIds;
+      state = originalState;
+    }
+
+    return newlyUnlockedPack;
+  }
+
+  function renderPacks() {
+    if (!elements.packGrid) {
+      return;
+    }
+
+    elements.packGrid.innerHTML = "";
+    const unlocked = new Set(state.unlockedPackIds || []);
+    const ownedIndexes = getOwnedIndexes();
+
+    elements.packStatusBadge.textContent = `${unlocked.size}/${CARD_PACKS.length} packs unlocked`;
+
+    for (const pack of CARD_PACKS) {
+      const cardIndexes = getCardsInPack(pack.id);
+      const ownedCount = cardIndexes.filter((index) => ownedIndexes.has(index)).length;
+      const packNode = document.createElement("article");
+      packNode.className = unlocked.has(pack.id) ? "pack-tile is-unlocked" : "pack-tile is-locked";
+      packNode.innerHTML = `
+        <h3>${pack.name}</h3>
+        <p>${pack.description}</p>
+        <strong>${ownedCount}/${cardIndexes.length} cards owned</strong>
+        <span>${unlocked.has(pack.id) ? "Unlocked" : pack.unlockHint}</span>
+      `;
+      elements.packGrid.appendChild(packNode);
+    }
   }
 
   function sanitiseOwnedCards(cards) {
@@ -1164,7 +1948,7 @@
       .sort((a, b) => a.purchasedAt - b.purchasedAt);
   }
 
-  function scoreWord(word) {
+function scoreWord(word) {
     return Math.max(1, word.length - 1);
   }
 
@@ -1175,6 +1959,464 @@
       return total + Math.max(0, correctAttempts) * scoreWord(word);
     }, 0);
   }
+
+  
+  function getSupabaseConfig() {
+    return window.DINO_SUPABASE || {};
+  }
+
+  function hasSupabaseConfig() {
+    const config = getSupabaseConfig();
+    return Boolean(config.url && config.anonKey && window.supabase);
+  }
+
+  async function initialiseSupabase() {
+    if (!hasSupabaseConfig()) {
+      elements.authStatus.textContent = "Supabase is not configured yet. Progress is saved on this device only.";
+      elements.signInButton.disabled = true;
+      elements.signUpButton.disabled = true;
+      elements.signOutButton.hidden = true;
+      renderBattlePanel();
+      return;
+    }
+
+    const config = getSupabaseConfig();
+    supabaseClient = window.supabase.createClient(config.url, config.anonKey);
+
+    const { data } = await supabaseClient.auth.getSession();
+    await handleAuthSession(data.session);
+
+    supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+      await handleAuthSession(session);
+    });
+  }
+
+  async function handleAuthSession(session) {
+    currentUser = session && session.user ? session.user : null;
+    renderAuthPanel();
+
+    if (currentUser) {
+      await ensureProfile();
+      await loadRemoteProgress();
+      await refreshCardsFromSupabase();
+      renderStats();
+      renderShop();
+      renderCollection();
+      renderPacks();
+      renderBattlePanel();
+    } else {
+      renderBattlePanel();
+    }
+  }
+
+  function renderAuthPanel() {
+    if (!currentUser) {
+      elements.authStatus.textContent = supabaseClient
+        ? "Not signed in. Sign in to save progress and use the battle arena."
+        : "Supabase is not configured yet. Progress is saved on this device only.";
+      elements.signOutButton.hidden = true;
+      elements.signInButton.disabled = !supabaseClient;
+      elements.signUpButton.disabled = !supabaseClient;
+      elements.authEmail.disabled = !supabaseClient;
+      elements.authPassword.disabled = !supabaseClient;
+      return;
+    }
+
+    elements.authStatus.textContent = `Signed in as ${currentUser.email || "player"}. Progress sync is on.`;
+    elements.signOutButton.hidden = false;
+    elements.signInButton.disabled = true;
+    elements.signUpButton.disabled = true;
+    elements.authEmail.disabled = true;
+    elements.authPassword.disabled = true;
+  }
+
+  async function signUpUser() {
+    if (!supabaseClient) return;
+    const email = elements.authEmail.value.trim();
+    const password = elements.authPassword.value;
+    if (!email || !password) {
+      elements.authStatus.textContent = "Enter an email and password first.";
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+    elements.authStatus.textContent = error
+      ? `Sign-up error: ${error.message}`
+      : "Account created. Check your email if Supabase asks for confirmation, then sign in.";
+  }
+
+  async function signInUser() {
+    if (!supabaseClient) return;
+    const email = elements.authEmail.value.trim();
+    const password = elements.authPassword.value;
+    if (!email || !password) {
+      elements.authStatus.textContent = "Enter an email and password first.";
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    elements.authStatus.textContent = error ? `Sign-in error: ${error.message}` : "Signed in.";
+  }
+
+  async function signOutUser() {
+    if (!supabaseClient) return;
+    stopBattlePolling();
+    await supabaseClient.auth.signOut();
+    currentUser = null;
+    renderAuthPanel();
+    renderBattlePanel();
+  }
+
+  async function ensureProfile() {
+    if (!supabaseClient || !currentUser) return;
+
+    await supabaseClient
+      .from("profiles")
+      .upsert({
+        user_id: currentUser.id,
+        email: currentUser.email || null,
+        display_name: (currentUser.email || "Player").split("@")[0],
+        updated_at: new Date().toISOString()
+      }, { onConflict: "user_id" });
+  }
+
+  function queueRemoteProgressSave() {
+    if (!supabaseClient || !currentUser) return;
+
+    window.clearTimeout(remoteSaveTimer);
+    remoteSaveTimer = window.setTimeout(saveRemoteProgress, 700);
+  }
+
+  async function saveRemoteProgress() {
+    if (!supabaseClient || !currentUser) return;
+
+    await supabaseClient
+      .from("user_progress")
+      .upsert({
+        user_id: currentUser.id,
+        mode: currentMode,
+        state,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "user_id,mode" });
+  }
+
+  async function loadRemoteProgress() {
+    if (!supabaseClient || !currentUser) return;
+
+    const { data, error } = await supabaseClient
+      .from("user_progress")
+      .select("state")
+      .eq("user_id", currentUser.id)
+      .eq("mode", currentMode)
+      .maybeSingle();
+
+    if (error) {
+      elements.authStatus.textContent = `Could not load saved progress: ${error.message}`;
+      return;
+    }
+
+    if (data && data.state) {
+      state = restoreStateShape(data.state);
+      saveState();
+    } else {
+      await saveRemoteProgress();
+    }
+  }
+
+  function restoreStateShape(savedState) {
+    const restored = {
+      ...makeInitialState(),
+      ...savedState,
+      progress: savedState.progress && typeof savedState.progress === "object" ? savedState.progress : {},
+      ownedCards: sanitiseOwnedCards(savedState.ownedCards || []),
+      unlockedPackIds: Array.isArray(savedState.unlockedPackIds) ? savedState.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID]
+    };
+
+    WORDS.forEach((word, index) => {
+      const savedProgress = restored.progress[word] || {};
+      restored.progress[word] = {
+        ...makeBlankProgress(word),
+        ...savedProgress,
+        word,
+        introduced: Boolean(savedProgress.introduced || savedProgress.mastered || Number(savedProgress.attempts || 0) > 0 || index < ACTIVE_WORD_TARGET),
+        mastered: Boolean(savedProgress.mastered)
+      };
+    });
+
+    ensurePackUnlockState(restored);
+    cleanQueue(restored);
+    fillQueueToSize(restored, ACTIVE_WORD_TARGET);
+    return restored;
+  }
+
+  async function upsertUserCard(cardIndex) {
+    if (!supabaseClient || !currentUser) return;
+
+    await supabaseClient
+      .from("user_cards")
+      .upsert({
+        user_id: currentUser.id,
+        card_index: cardIndex,
+        purchased_at: new Date().toISOString(),
+        acquired_from: "shop"
+      }, { onConflict: "user_id,card_index" });
+  }
+
+  async function refreshCardsFromSupabase() {
+    if (!supabaseClient || !currentUser) return;
+
+    const { data, error } = await supabaseClient
+      .from("user_cards")
+      .select("card_index,purchased_at")
+      .eq("user_id", currentUser.id)
+      .order("purchased_at", { ascending: true });
+
+    if (error) {
+      elements.authStatus.textContent = `Could not load cards: ${error.message}`;
+      return;
+    }
+
+    state.ownedCards = sanitiseOwnedCards((data || []).map((card) => ({
+      index: card.card_index,
+      purchasedAt: new Date(card.purchased_at).getTime() || Date.now()
+    })));
+    ensurePackUnlockState(state);
+    saveState();
+  }
+
+  function renderBattlePanel() {
+    if (!elements.battlePanel) return;
+
+    const ownedCards = state.ownedCards
+      .map((ownedCard) => ({ ...ownedCard, template: CREATURE_CARD_TEMPLATES[ownedCard.index] }))
+      .filter((ownedCard) => ownedCard.template);
+
+    elements.battleCardSelect.innerHTML = "";
+    for (const ownedCard of ownedCards) {
+      const option = document.createElement("option");
+      option.value = String(ownedCard.index);
+      option.textContent = `${ownedCard.template.name} (${getCardCost(ownedCard.index)} pts)`;
+      elements.battleCardSelect.appendChild(option);
+    }
+
+    const canBattle = Boolean(currentUser && supabaseClient && ownedCards.length > 0);
+    elements.battleCardSelect.disabled = !canBattle;
+    elements.enterBattleButton.disabled = !canBattle;
+
+    if (!currentUser) {
+      elements.battleStatus.textContent = "Sign in to battle another player.";
+    } else if (ownedCards.length === 0) {
+      elements.battleStatus.textContent = "Buy at least one card before entering the arena.";
+    } else if (!currentBattle) {
+      elements.battleStatus.textContent = "Choose one owned card to enter the arena.";
+    }
+  }
+
+  async function enterBattleArena() {
+    if (!supabaseClient || !currentUser) {
+      elements.battleStatus.textContent = "Sign in first to use the battle arena.";
+      return;
+    }
+
+    const cardIndex = Number(elements.battleCardSelect.value);
+    const ownedSet = getOwnedIndexes();
+    if (!Number.isInteger(cardIndex) || !ownedSet.has(cardIndex)) {
+      elements.battleStatus.textContent = "Choose a card you own.";
+      return;
+    }
+
+    elements.enterBattleButton.disabled = true;
+    elements.battleResult.textContent = "";
+    renderBattleGrid(0.5);
+
+    const attackStrength = await getOrCreateBattleStrength(cardIndex);
+    const displayName = (currentUser.email || "Player").split("@")[0];
+
+    const { data: waitingBattle } = await supabaseClient
+      .from("battle_rooms")
+      .select("*")
+      .eq("status", "waiting")
+      .neq("challenger_id", currentUser.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (waitingBattle) {
+      const { data: joinedBattle, error } = await supabaseClient
+        .from("battle_rooms")
+        .update({
+          opponent_id: currentUser.id,
+          opponent_name: displayName,
+          opponent_card_index: cardIndex,
+          opponent_attack: attackStrength,
+          status: "ready"
+        })
+        .eq("id", waitingBattle.id)
+        .eq("status", "waiting")
+        .select()
+        .single();
+
+      if (error) {
+        elements.battleStatus.textContent = `Could not join battle: ${error.message}`;
+        elements.enterBattleButton.disabled = false;
+        return;
+      }
+
+      currentBattle = joinedBattle;
+      renderMatchedBattle(joinedBattle);
+      await resolveCurrentBattle();
+      return;
+    }
+
+    const { data: createdBattle, error } = await supabaseClient
+      .from("battle_rooms")
+      .insert({
+        challenger_id: currentUser.id,
+        challenger_name: displayName,
+        challenger_card_index: cardIndex,
+        challenger_attack: attackStrength,
+        status: "waiting"
+      })
+      .select()
+      .single();
+
+    if (error) {
+      elements.battleStatus.textContent = `Could not create battle: ${error.message}`;
+      elements.enterBattleButton.disabled = false;
+      return;
+    }
+
+    currentBattle = createdBattle;
+    elements.battleStatus.textContent = `Waiting for an opponent. Your ${CREATURE_CARD_TEMPLATES[cardIndex].name} has attack strength ${attackStrength}.`;
+    elements.battleOpponent.textContent = "";
+    startBattlePolling(createdBattle.id);
+  }
+
+  async function getOrCreateBattleStrength(cardIndex) {
+    const { data } = await supabaseClient
+      .from("card_battle_stats")
+      .select("attack_strength")
+      .eq("user_id", currentUser.id)
+      .eq("card_index", cardIndex)
+      .maybeSingle();
+
+    if (data && Number.isFinite(data.attack_strength)) {
+      return data.attack_strength;
+    }
+
+    const minStrength = getCardCost(cardIndex);
+    const attackStrength = randomInt(minStrength, 100);
+    await supabaseClient
+      .from("card_battle_stats")
+      .upsert({
+        user_id: currentUser.id,
+        card_index: cardIndex,
+        attack_strength: attackStrength,
+        created_at: new Date().toISOString()
+      }, { onConflict: "user_id,card_index" });
+
+    return attackStrength;
+  }
+
+  function startBattlePolling(battleId) {
+    stopBattlePolling();
+    battlePollTimer = window.setInterval(async () => {
+      const { data } = await supabaseClient
+        .from("battle_rooms")
+        .select("*")
+        .eq("id", battleId)
+        .maybeSingle();
+
+      if (!data) return;
+      currentBattle = data;
+
+      if (data.status === "ready") {
+        renderMatchedBattle(data);
+        await resolveCurrentBattle();
+      } else if (data.status === "resolved") {
+        stopBattlePolling();
+        await showResolvedBattle(data);
+      }
+    }, 2500);
+  }
+
+  function stopBattlePolling() {
+    if (battlePollTimer) {
+      window.clearInterval(battlePollTimer);
+      battlePollTimer = null;
+    }
+  }
+
+  function renderMatchedBattle(battle) {
+    const isChallenger = battle.challenger_id === currentUser.id;
+    const myCardIndex = isChallenger ? battle.challenger_card_index : battle.opponent_card_index;
+    const opponentCardIndex = isChallenger ? battle.opponent_card_index : battle.challenger_card_index;
+    const myAttack = isChallenger ? battle.challenger_attack : battle.opponent_attack;
+    const opponentAttack = isChallenger ? battle.opponent_attack : battle.challenger_attack;
+    const opponentName = isChallenger ? battle.opponent_name : battle.challenger_name;
+    const myCard = CREATURE_CARD_TEMPLATES[myCardIndex];
+    const opponentCard = CREATURE_CARD_TEMPLATES[opponentCardIndex];
+    const percent = myAttack / (myAttack + opponentAttack);
+
+    elements.battleStatus.textContent = `You are fighting with ${myCard.name} (${myAttack}).`;
+    elements.battleOpponent.textContent = `Opponent: ${opponentName || "Player"} with ${opponentCard.name} (${opponentAttack}).`;
+    renderBattleGrid(percent);
+  }
+
+  async function resolveCurrentBattle() {
+    if (!currentBattle || currentBattle.status === "resolved") {
+      return;
+    }
+
+    stopBattlePolling();
+
+    const { data, error } = await supabaseClient.rpc("resolve_battle", {
+      p_battle_id: currentBattle.id
+    });
+
+    if (error) {
+      elements.battleResult.textContent = `Battle is matched, but the Supabase resolve_battle function is not ready yet: ${error.message}`;
+      elements.enterBattleButton.disabled = false;
+      return;
+    }
+
+    const resolved = Array.isArray(data) ? data[0] : data;
+    await refreshCardsFromSupabase();
+    renderStats();
+    renderShop();
+    renderCollection();
+    renderPacks();
+    await showResolvedBattle(resolved || currentBattle);
+  }
+
+  async function showResolvedBattle(result) {
+    const winnerId = result.winner_id;
+    const loserId = result.loser_id;
+    const didWin = winnerId === currentUser.id;
+
+    elements.battleResult.textContent = didWin
+      ? "You won! Your opponent's card has been added to your collection."
+      : "You lost. Your battle card has been removed, but you can buy it again in the shop.";
+
+    currentBattle = null;
+    elements.enterBattleButton.disabled = false;
+    renderBattlePanel();
+  }
+
+  function renderBattleGrid(userPercent) {
+    elements.battleGrid.innerHTML = "";
+    const redSquares = Math.round(clamp(userPercent, 0, 1) * 100);
+
+    for (let index = 0; index < 100; index += 1) {
+      const square = document.createElement("span");
+      square.className = index < redSquares ? "battle-square is-user" : "battle-square is-opponent";
+      elements.battleGrid.appendChild(square);
+    }
+  }
+
+  function randomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
 
   function setupVoicePicker() {
     if (!("speechSynthesis" in window)) {
@@ -1201,7 +2443,8 @@
 
       availableVoices = englishVoices;
       const savedVoice = window.localStorage.getItem(VOICE_STORAGE_KEY);
-      const selectedVoice = englishVoices.find((voice) => voice.name === savedVoice) || englishVoices[0];
+      const defaultVoice = getDefaultVoice(englishVoices);
+      const selectedVoice = englishVoices.find((voice) => voice.name === savedVoice) || defaultVoice;
 
       elements.voiceSelect.innerHTML = "";
       englishVoices.forEach((voice) => {
@@ -1223,6 +2466,14 @@
     } else {
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
+  }
+
+  function getDefaultVoice(englishVoices) {
+    return englishVoices.find((voice) => voice.name === DEFAULT_VOICE_NAME && voice.lang === DEFAULT_VOICE_LANG) ||
+      englishVoices.find((voice) => voice.name === DEFAULT_VOICE_NAME) ||
+      englishVoices.find((voice) => voice.lang === DEFAULT_VOICE_LANG && voice.name.toLowerCase().includes("google")) ||
+      englishVoices.find((voice) => voice.lang === DEFAULT_VOICE_LANG) ||
+      englishVoices[0];
   }
 
   function scoreVoice(voice) {
@@ -1268,10 +2519,16 @@
     elements.hintText.textContent = `Hint: starts with “${currentWord.charAt(0)}”. Pattern: ${pattern}`;
   }
 
+  function getSentenceForWord(word) {
+    return SIMPLE_SENTENCES[word] || `I can spell the word ${word}.`;
+  }
+
   function speakCurrentWord() {
     if (!currentWord) {
       return;
     }
+
+    focusAnswerInput();
 
     if (!("speechSynthesis" in window)) {
       elements.hintText.textContent = `Speech is not available in this browser. Ask a grown-up to read: ${currentWord}`;
@@ -1280,7 +2537,8 @@
 
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(`${currentWord}. ${currentWord}.`);
+    const sentence = getSentenceForWord(currentWord);
+    const utterance = new SpeechSynthesisUtterance(`${currentWord}. As in, ${sentence}`);
     const selectedVoice = getSelectedVoice();
     if (selectedVoice) {
       utterance.voice = selectedVoice;
@@ -1292,7 +2550,17 @@
     utterance.rate = 0.74;
     utterance.pitch = 0.95;
     utterance.volume = 1;
+    utterance.onend = focusAnswerInput;
     window.speechSynthesis.speak(utterance);
+    window.setTimeout(focusAnswerInput, 80);
+  }
+
+  function focusAnswerInput() {
+    if (!elements.answerInput || elements.answerInput.disabled) {
+      return;
+    }
+
+    elements.answerInput.focus({ preventScroll: true });
   }
 
   function renderRestingState() {
