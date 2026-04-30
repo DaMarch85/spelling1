@@ -1635,7 +1635,7 @@
       renderLevelSelector();
       elements.practicePanel.hidden = true;
       elements.restingPanel.hidden = false;
-      elements.nextDueText.textContent = "Choose a starting level to begin.";
+      elements.nextDueText.textContent = "";
       renderDueBadge();
       return;
     }
@@ -1665,7 +1665,7 @@
   function renderCurrentWord() {
     const points = scoreWord(currentWord);
     const progress = state.progress[currentWord];
-    elements.wordLength.textContent = `Word length: ${currentWord.length} letters · worth ${points} ${pluralise(points, "point")}`;
+    elements.wordLength.textContent = `${currentWord.length} letter word for ${points} ${pluralise(points, "point")}`;
     const entry = getEntryForWord(currentWord);
     elements.contextClue.textContent = entry ? `Level ${entry.level}${entry.band ? ` · ${entry.band}` : ""}` : (CONTEXT_CLUES[currentWord] || "");
     elements.revealWordButton.disabled = !canRevealCurrentWord();
@@ -1900,7 +1900,7 @@
     if (elements.wordsCorrectTotal) {
       elements.wordsCorrectTotal.textContent = getTotalCorrectSpellings();
     }
-    elements.battlePointNextText.textContent = `${getCorrectSpellingsUntilBattlePoint()} correct to next battle point`;
+    elements.battlePointNextText.textContent = `Next battle point in ${getCorrectSpellingsUntilBattlePoint()} words time`;
     const highestLevel = getUnlockedLevels(state).slice(-1)[0] || "—";
     elements.wordLevelBadge.textContent = state.selectedLevel ? `Level ${state.selectedLevel} · ${WORDS.length} words active` : "Choose a level";
     elements.shopOpenTotal.textContent = `${availableCount}/${ACTIVE_CREATURE_CARD_TEMPLATES.length}`;
@@ -1929,7 +1929,7 @@
   }
 
   function renderDueBadge() {
-    elements.dueCount.textContent = `${state.queue.length} queued`;
+    elements.dueCount.textContent = String(state.queue.length);
   }
 
   function renderShop() {
@@ -2736,7 +2736,7 @@ function scoreWord(word) {
     elements.enterBattleButton.disabled = !canBattle;
 
     if (elements.battlePointNextText) {
-      elements.battlePointNextText.textContent = `${getCorrectSpellingsUntilBattlePoint()} correct to next battle point`;
+      elements.battlePointNextText.textContent = `Next battle point in ${getCorrectSpellingsUntilBattlePoint()} words time`;
     }
 
     if (!currentUser) {
@@ -3198,9 +3198,9 @@ function scoreWord(word) {
   }
 
   function renderRestingState() {
-    elements.practicePanel.hidden = true;
-    elements.restingPanel.hidden = false;
-    elements.nextDueText.textContent = "You mastered every active word. Great work!";
+    elements.practicePanel.hidden = false;
+    elements.restingPanel.hidden = true;
+    elements.nextDueText.textContent = "";
   }
 
   function normaliseAnswer(value) {

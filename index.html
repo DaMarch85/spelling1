@@ -40,18 +40,14 @@
     <main class="layout">
       <section class="game-card" aria-labelledby="practiceTitle">
         <div class="game-card__topline">
-          <h2 id="practiceTitle">Spell</h2>
+          <h2 id="practiceTitle" class="sr-only">Practice</h2>
           <div class="topline-pills">
             <span class="pill" id="wordLevelBadge">Choose a level</span>
-            <span class="pill" id="dueCount">0 queued</span>
+            <span class="pill is-hidden" id="dueCount">0 queued</span>
           </div>
         </div>
 
-        <div id="restingPanel" class="resting-panel" hidden>
-          <p class="resting-panel__title">All words mastered.</p>
-          <p id="nextDueText">Great work!</p>
-          <button class="primary-button" id="refreshButton" type="button">Refresh</button>
-        </div>
+        <div id="restingPanel" class="resting-panel compact-resting-panel" hidden><p id="nextDueText"></p><button class="primary-button is-hidden" id="refreshButton" type="button">Refresh</button></div>
 
         <div id="practicePanel">
           <div class="prompt-box">
@@ -127,7 +123,12 @@
           </div>
         </div>
 
-        <p class="small-note" id="battlePointNextText">10 correct to next battle point</p>
+        <div class="progress-block progress-block--battle">
+          <div class="progress-copy">
+            <span>Next battle point</span>
+            <strong id="battlePointNextText">Next battle point in 10 words time</strong>
+          </div>
+        </div>
       </aside>
 
       <section class="pack-card" aria-labelledby="packTitle">

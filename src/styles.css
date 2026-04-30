@@ -1118,3 +1118,100 @@ body {
 .level-toggle-button {
   white-space: nowrap;
 }
+
+
+/* Compact practice-panel refinements */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+.compact-resting-panel {
+  display: none !important;
+}
+
+.game-card {
+  padding: 1rem;
+}
+
+.game-card__topline {
+  margin-bottom: 0.55rem;
+  min-height: 0;
+}
+
+.topline-pills {
+  margin-left: auto;
+}
+
+.prompt-box {
+  min-height: 10.5rem;
+  padding: 1rem;
+}
+
+.prompt-label {
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.word-length {
+  margin-bottom: 0.35rem;
+  font-size: clamp(1.55rem, 4vw, 2.15rem);
+  line-height: 1.1;
+}
+
+.context-clue {
+  margin-bottom: 0.55rem;
+  min-height: 1.15rem;
+}
+
+.egg {
+  width: 1.55rem;
+  height: 1.8rem;
+}
+
+.button-row,
+.input-row {
+  margin-top: 0.75rem;
+}
+
+.voice-control {
+  margin-top: 0.75rem;
+}
+
+.hint {
+  margin-top: 0.6rem;
+}
+
+form {
+  margin-top: 0.75rem;
+}
+
+.progress-block--battle {
+  margin-top: 0.8rem;
+}
+
+.progress-block--battle .progress-copy {
+  margin-bottom: 0;
+}
+
+.progress-block--battle strong {
+  color: #fff1db;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .prompt-box {
+    min-height: 9.75rem;
+  }
+}
