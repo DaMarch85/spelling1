@@ -1,8 +1,8 @@
 {
-  "name": "dino-speller",
+  "name": "spelling-battle-cards",
   "version": "1.0.0",
   "private": true,
-  "description": "A spaced-repetition spelling game for kids using common English words.",
+  "description": "A spelling, card collecting, and battle game for kids.",
   "scripts": {
     "start": "node scripts/dev-server.mjs",
     "test": "node tests/words.test.js"
