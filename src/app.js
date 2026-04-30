@@ -1732,6 +1732,7 @@
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     saveState();
     selectNextWord();
+    window.setTimeout(focusAnswerInput, 0);
   }
 
   function cleanQueue(targetState) {
@@ -3656,6 +3657,7 @@ function setupVoicePicker() {
       .join(" ");
 
     elements.hintText.textContent = `Hint: starts with “${currentWord.charAt(0)}”. Pattern: ${pattern}`;
+    focusAnswerInput();
   }
 
   function getSentenceForWord(word) {
