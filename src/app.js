@@ -1323,6 +1323,12 @@
     if (elements.battleArenaJump) {
       elements.battleArenaJump.addEventListener("click", () => elements.battlePanel.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
+    window.addEventListener("pagehide", handlePageLifecycleSave);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        handlePageLifecycleSave();
+      }
+    });
 
     renderLevelSelector();
     setupVoicePicker();
@@ -1477,7 +1483,7 @@
     levelPanelCollapsed = true;
     currentWord = null;
     clearAutoAdvance();
-    saveState();
+    saveState({ immediateRemote: Boolean(currentUser) });
     if (currentUser) {
       ensureProfile();
     }
@@ -1504,6 +1510,7 @@
     const safeLevel = Number.isInteger(Number(selectedLevel)) ? clamp(Number(selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
     const initialState = {
       version: 11,
+      lastUpdatedAt: Date.now(),
       selectedLevel: safeLevel,
       unlockedLevels: safeLevel ? [safeLevel] : [],
       points: 0,
@@ -1544,6 +1551,7 @@
       const selectedLevel = Number.isInteger(Number(parsed.selectedLevel)) ? clamp(Number(parsed.selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
       const loaded = {
         version: 11,
+        lastUpdatedAt: Number.isFinite(parsed.lastUpdatedAt) ? parsed.lastUpdatedAt : 0,
         selectedLevel,
         unlockedLevels: Array.isArray(parsed.unlockedLevels) ? parsed.unlockedLevels : (selectedLevel ? [selectedLevel] : []),
         points: Number.isFinite(parsed.points) ? Math.max(0, parsed.points) : 0,
@@ -1618,8 +1626,27 @@
     }
   }
 
-  function saveState() {
-    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+  function writeLocalState(targetState = state) {
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(targetState));
+  }
+
+  function saveState(options = {}) {
+    const { skipRemote = false, immediateRemote = false, preserveTimestamp = false } = options;
+    if (!preserveTimestamp) {
+      state.lastUpdatedAt = Date.now();
+    }
+
+    writeLocalState(state);
+
+    if (skipRemote) {
+      return;
+    }
+
+    if (immediateRemote) {
+      saveRemoteProgress();
+      return;
+    }
+
     queueRemoteProgressSave();
   }
 
@@ -1798,7 +1825,7 @@
     }
 
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
-    saveState();
+    saveState({ immediateRemote: wasCorrect });
     renderStats();
     renderShop();
     renderCollection();
@@ -2178,13 +2205,13 @@ function handleShopClick(event) {
     const localCard = { index: cardIndex, purchasedAt: Date.now(), source: "shop", attackStrength: null };
     state.ownedCards.push(localCard);
     lastPurchasedIndex = cardIndex;
-    saveState();
+    saveState({ immediateRemote: true });
 
     const insertedCard = await upsertUserCard(cardIndex, "shop");
     if (insertedCard && insertedCard.id) {
       localCard.id = insertedCard.id;
       localCard.purchasedAt = new Date(insertedCard.purchased_at).getTime() || localCard.purchasedAt;
-      saveState();
+      saveState({ immediateRemote: true });
     }
 
     renderStats();
@@ -2610,11 +2637,28 @@ function scoreWord(word) {
     if (!supabaseClient || !currentUser) return;
 
     window.clearTimeout(remoteSaveTimer);
-    remoteSaveTimer = window.setTimeout(saveRemoteProgress, 700);
+    remoteSaveTimer = window.setTimeout(saveRemoteProgress, 200);
+  }
+
+  function handlePageLifecycleSave() {
+    if (!state) return;
+
+    state.lastUpdatedAt = Date.now();
+    writeLocalState(state);
+
+    if (supabaseClient && currentUser) {
+      window.clearTimeout(remoteSaveTimer);
+      saveRemoteProgress();
+    }
   }
 
   async function saveRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
+
+    window.clearTimeout(remoteSaveTimer);
+    remoteSaveTimer = null;
+    state.lastUpdatedAt = state.lastUpdatedAt || Date.now();
+    writeLocalState(state);
 
     const { error } = await supabaseClient
       .from("user_progress")
@@ -2633,9 +2677,10 @@ function scoreWord(word) {
   async function loadRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
 
+    const localBeforeRemote = restoreStateShape(state);
     const { data, error } = await supabaseClient
       .from("user_progress")
-      .select("state")
+      .select("state,updated_at")
       .eq("user_id", currentUser.id)
       .eq("mode", "graded")
       .maybeSingle();
@@ -2646,11 +2691,15 @@ function scoreWord(word) {
     }
 
     if (data && data.state) {
-      state = restoreStateShape(data.state);
-      saveState();
+      const remoteState = restoreStateShape(data.state);
+      state = mergeGameStates(localBeforeRemote, remoteState);
+      saveState({ immediateRemote: true, preserveTimestamp: true });
     } else {
-      await saveRemoteProgress();
+      state = localBeforeRemote;
+      saveState({ immediateRemote: true, preserveTimestamp: true });
     }
+
+    await syncUnsyncedOwnedCardsToSupabase();
   }
 
   function restoreStateShape(savedState) {
@@ -2658,6 +2707,7 @@ function scoreWord(word) {
     const restored = {
       ...makeInitialState(selectedLevel),
       ...savedState,
+      lastUpdatedAt: Number.isFinite(savedState.lastUpdatedAt) ? savedState.lastUpdatedAt : 0,
       selectedLevel,
       progress: savedState.progress && typeof savedState.progress === "object" ? savedState.progress : {},
       ownedCards: sanitiseOwnedCards(savedState.ownedCards || []),
@@ -2686,17 +2736,129 @@ function scoreWord(word) {
     return restored;
   }
 
-  async function upsertUserCard(cardIndex, source = "shop") {
+  function mergeGameStates(localState, remoteState) {
+    const localScore = getStateProgressScore(localState);
+    const remoteScore = getStateProgressScore(remoteState);
+    const baseState = localScore >= remoteScore ? localState : remoteState;
+    const otherState = localScore >= remoteScore ? remoteState : localState;
+    const merged = restoreStateShape(baseState);
+
+    merged.lastUpdatedAt = Math.max(Number(localState.lastUpdatedAt || 0), Number(remoteState.lastUpdatedAt || 0), Date.now());
+    merged.selectedLevel = merged.selectedLevel || otherState.selectedLevel || null;
+    merged.unlockedLevels = mergeNumberLists(localState.unlockedLevels, remoteState.unlockedLevels).filter((level) => level >= MIN_LEVEL && level <= MAX_LEVEL);
+    if (merged.selectedLevel && merged.unlockedLevels.length === 0) {
+      merged.unlockedLevels = [merged.selectedLevel];
+    }
+
+    merged.unlockedPackIds = mergePackIds(localState.unlockedPackIds, remoteState.unlockedPackIds);
+    merged.points = Math.max(Number(localState.points || 0), Number(remoteState.points || 0));
+    merged.lifetimePoints = Math.max(Number(localState.lifetimePoints || 0), Number(remoteState.lifetimePoints || 0), calculateEarnedPoints(merged));
+    merged.battlePoints = Math.max(Number(localState.battlePoints || 0), Number(remoteState.battlePoints || 0));
+    merged.correctSpellingsTowardBattlePoint = Math.max(Number(localState.correctSpellingsTowardBattlePoint || 0), Number(remoteState.correctSpellingsTowardBattlePoint || 0));
+    merged.ownedCards = mergeOwnedCards(localState.ownedCards || [], remoteState.ownedCards || []);
+    merged.progress = mergeProgressMaps(localState.progress || {}, remoteState.progress || {});
+
+    ensureProgressForActiveWords(merged);
+    ensurePackUnlockState(merged);
+    cleanQueue(merged);
+    fillQueueToSize(merged, ACTIVE_WORD_TARGET);
+    return merged;
+  }
+
+  function getStateProgressScore(targetState) {
+    const progressValues = Object.values(targetState.progress || {});
+    const mastered = progressValues.filter((progress) => progress && progress.mastered).length;
+    const correctAttempts = progressValues.reduce((sum, progress) => sum + Number(progress && progress.correctAttempts || 0), 0);
+    return Number(targetState.lifetimePoints || 0) +
+      Number(targetState.points || 0) +
+      Number(targetState.battlePoints || 0) * 25 +
+      (targetState.ownedCards || []).length * 35 +
+      mastered * 12 +
+      correctAttempts * 3 +
+      (targetState.unlockedPackIds || []).length * 15 +
+      (targetState.unlockedLevels || []).length * 10;
+  }
+
+  function mergeProgressMaps(localProgress, remoteProgress) {
+    const merged = {};
+    const allWords = new Set([...Object.keys(localProgress || {}), ...Object.keys(remoteProgress || {})]);
+    allWords.forEach((word) => {
+      const localWord = localProgress[word] || {};
+      const remoteWord = remoteProgress[word] || {};
+      const localScore = getWordProgressScore(localWord);
+      const remoteScore = getWordProgressScore(remoteWord);
+      const base = localScore >= remoteScore ? localWord : remoteWord;
+      const laterAttempt = Number(localWord.lastAttemptAt || 0) >= Number(remoteWord.lastAttemptAt || 0) ? localWord : remoteWord;
+      merged[word] = {
+        ...makeBlankProgress(word),
+        ...base,
+        word,
+        attempts: Math.max(Number(localWord.attempts || 0), Number(remoteWord.attempts || 0)),
+        correctAttempts: Math.max(Number(localWord.correctAttempts || 0), Number(remoteWord.correctAttempts || 0)),
+        correctStreak: Math.max(Number(localWord.correctStreak || 0), Number(remoteWord.correctStreak || 0)),
+        introduced: Boolean(localWord.introduced || remoteWord.introduced),
+        mastered: Boolean(localWord.mastered || remoteWord.mastered),
+        masteredAt: localWord.masteredAt || remoteWord.masteredAt || null,
+        lastAttemptAt: Math.max(Number(localWord.lastAttemptAt || 0), Number(remoteWord.lastAttemptAt || 0)) || null,
+        lastAttemptWasWrong: Boolean(laterAttempt.lastAttemptWasWrong)
+      };
+    });
+    return merged;
+  }
+
+  function getWordProgressScore(progress) {
+    return (progress && progress.mastered ? 100 : 0) +
+      Number(progress && progress.correctAttempts || 0) * 10 +
+      Number(progress && progress.correctStreak || 0) * 3 +
+      Number(progress && progress.attempts || 0);
+  }
+
+  function mergeOwnedCards(localCards, remoteCards) {
+    const merged = [];
+    const seenIds = new Set();
+    const seenLoose = new Set();
+
+    [...sanitiseOwnedCards(remoteCards || []), ...sanitiseOwnedCards(localCards || [])].forEach((card) => {
+      if (card.id) {
+        if (seenIds.has(card.id)) return;
+        seenIds.add(card.id);
+        merged.push(card);
+        return;
+      }
+
+      const looseKey = `${card.index}|${card.purchasedAt}|${card.source || "shop"}`;
+      if (seenLoose.has(looseKey)) return;
+      seenLoose.add(looseKey);
+      merged.push(card);
+    });
+
+    return merged.sort((a, b) => a.purchasedAt - b.purchasedAt);
+  }
+
+  function mergeNumberLists(first = [], second = []) {
+    return Array.from(new Set([...(first || []), ...(second || [])].map(Number).filter(Number.isFinite))).sort((a, b) => a - b);
+  }
+
+  function mergePackIds(first = [], second = []) {
+    const validPackIds = new Set(ACTIVE_CARD_PACKS.map((pack) => pack.id));
+    const merged = Array.from(new Set([...(first || []), ...(second || []), INITIAL_UNLOCKED_PACK_ID]))
+      .filter((packId) => validPackIds.has(packId));
+    return merged.length > 0 ? merged : [INITIAL_UNLOCKED_PACK_ID];
+  }
+
+  async function upsertUserCard(cardIndex, source = "shop", options = {}) {
     if (!supabaseClient || !currentUser) return null;
 
+    const purchasedAt = new Date(options.purchasedAt || Date.now()).toISOString();
+    const attackStrength = isValidBattleAttack(options.attackStrength) ? Number(options.attackStrength) : null;
     const { data, error } = await supabaseClient
       .from("user_cards")
       .insert({
         user_id: currentUser.id,
         card_index: cardIndex,
-        purchased_at: new Date().toISOString(),
+        purchased_at: purchasedAt,
         acquired_from: source,
-        attack_strength: null
+        attack_strength: attackStrength
       })
       .select()
       .single();
@@ -2706,7 +2868,7 @@ function scoreWord(word) {
         card_instance_id: data.id,
         user_id: currentUser.id,
         action: source === "battle_win" ? "battle_win" : "shop_purchase",
-        created_at: data.purchased_at || new Date().toISOString()
+        created_at: data.purchased_at || purchasedAt
       });
     }
 
@@ -2727,15 +2889,47 @@ function scoreWord(word) {
       return;
     }
 
-    state.ownedCards = sanitiseOwnedCards((data || []).map((card) => ({
+    const serverCards = sanitiseOwnedCards((data || []).map((card) => ({
       id: card.id,
       index: card.card_index,
       purchasedAt: new Date(card.purchased_at).getTime() || Date.now(),
       source: card.acquired_from || "shop",
       attackStrength: normaliseBattleAttack(card.attack_strength)
     })));
+
+    state.ownedCards = mergeOwnedCards(state.ownedCards || [], serverCards);
     ensurePackUnlockState(state);
-    saveState();
+    saveState({ preserveTimestamp: true });
+    await syncUnsyncedOwnedCardsToSupabase();
+  }
+
+  async function syncUnsyncedOwnedCardsToSupabase() {
+    if (!supabaseClient || !currentUser) return;
+
+    let changed = false;
+    for (const card of state.ownedCards) {
+      if (card.id || !Number.isInteger(card.index)) {
+        continue;
+      }
+
+      const insertedCard = await upsertUserCard(card.index, card.source || "shop", {
+        purchasedAt: card.purchasedAt,
+        attackStrength: card.attackStrength
+      });
+
+      if (insertedCard && insertedCard.id) {
+        card.id = insertedCard.id;
+        card.purchasedAt = new Date(insertedCard.purchased_at).getTime() || card.purchasedAt;
+        card.attackStrength = normaliseBattleAttack(insertedCard.attack_strength) || card.attackStrength || null;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      saveState({ immediateRemote: true });
+      renderCollection();
+      renderBattlePanel();
+    }
   }
 
   function getBattleHeartbeatCutoffIso() {
@@ -3069,7 +3263,7 @@ function scoreWord(word) {
 
   function spendBattlePoint() {
     state.battlePoints = Math.max(0, Number(state.battlePoints || 0) - 1);
-    saveState();
+    saveState({ immediateRemote: true });
     renderStats();
   }
 
@@ -3092,12 +3286,12 @@ function scoreWord(word) {
         ownedCard.attackStrength = attackStrength;
         const local = state.ownedCards.find((card) => card.id === ownedCard.id);
         if (local) local.attackStrength = attackStrength;
-        saveState();
+        saveState({ immediateRemote: true });
         renderCollection();
       }
     } else {
       ownedCard.attackStrength = attackStrength;
-      saveState();
+      saveState({ immediateRemote: true });
     }
 
     return attackStrength;
