@@ -1270,6 +1270,8 @@
     battleOpponent: document.querySelector("#battleOpponent"),
     battleGrid: document.querySelector("#battleGrid"),
     battleResult: document.querySelector("#battleResult"),
+    pointsLeaderboard: document.querySelector("#pointsLeaderboard"),
+    masteredLeaderboard: document.querySelector("#masteredLeaderboard"),
     battleQueueCount: document.querySelector("#battleQueueCount"),
     cancelBattleButton: document.querySelector("#cancelBattleButton")
   };
@@ -1331,6 +1333,7 @@
     renderCollection();
     renderPacks();
     renderBattlePanel();
+    renderLeaderboards();
     refreshBattleLobbyCount();
     startBattleLobbyRefresh();
     renderDueBadge();
@@ -1949,33 +1952,38 @@
   }
 
   function renderShop() {
+    const availableIndexes = getAvailableCardIndexes();
     const ownedSet = new Set(state.ownedCards.map((card) => card.index));
-    const availableIndexes = getShopCardIndexes();
+    const shopIndexes = availableIndexes.filter((index) => !ownedSet.has(index));
     const spareUnlocks = Math.max(0, getPackUnlockSlots(state) - (state.unlockedPackIds || []).length);
     const lockedCount = ACTIVE_CARD_PACKS.filter((pack) => !isPackUnlocked(pack.id)).length;
 
     elements.shopGrid.innerHTML = "";
-    elements.shopStatusBadge.textContent = `${availableIndexes.length} cards available`;
+    elements.shopStatusBadge.textContent = `${shopIndexes.length} cards available`;
     elements.shopMessage.textContent = lockedCount === 0
-      ? "All packs are unlocked."
-      : (spareUnlocks > 0 ? `You can unlock ${spareUnlocks} more pack${spareUnlocks === 1 ? "" : "s"}.` : "Only cards from unlocked packs appear in the shop.");
+      ? "All packs are unlocked. Bought cards are shown only in your collection."
+      : (spareUnlocks > 0 ? `You can unlock ${spareUnlocks} more pack${spareUnlocks === 1 ? "" : "s"}. Bought cards are shown in your collection.` : "Only unbought cards from unlocked packs appear in the shop.");
 
-    for (const index of availableIndexes) {
+    if (shopIndexes.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty-album";
+      empty.textContent = "No unbought cards are available in the shop right now. Unlock another pack or check your collection below.";
+      elements.shopGrid.appendChild(empty);
+      return;
+    }
+
+    for (const index of shopIndexes) {
       const template = ACTIVE_CREATURE_CARD_TEMPLATES[index];
-      const owned = ownedSet.has(index);
       const cardCost = getCardCost(index);
       const affordable = state.points >= cardCost;
       const node = elements.shopCardTemplate.content.cloneNode(true);
       const article = node.querySelector(".monster-card");
       const button = node.querySelector("button");
 
-      if (owned) {
-        continue;
-      }
-
       populateMysteryCardNode(node, template, `${getPackById(template.packId).shortName} pack`, cardCost);
       article.classList.add("is-mystery");
       button.dataset.cardIndex = String(index);
+
       if (affordable) {
         button.textContent = `Buy for ${cardCost}`;
         button.disabled = false;
@@ -2487,9 +2495,11 @@ function scoreWord(word) {
       renderCollection();
       renderPacks();
       renderBattlePanel();
+      renderLeaderboards();
       renderLevelSelector();
     } else {
       renderBattlePanel();
+      renderLeaderboards();
       renderLevelSelector();
     }
   }
@@ -2606,7 +2616,7 @@ function scoreWord(word) {
   async function saveRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
 
-    await supabaseClient
+    const { error } = await supabaseClient
       .from("user_progress")
       .upsert({
         user_id: currentUser.id,
@@ -2614,6 +2624,10 @@ function scoreWord(word) {
         state,
         updated_at: new Date().toISOString()
       }, { onConflict: "user_id,mode" });
+
+    if (!error) {
+      renderLeaderboards();
+    }
   }
 
   async function loadRemoteProgress() {
@@ -3281,7 +3295,75 @@ function scoreWord(word) {
   }
 
 
-  function setupVoicePicker() {
+  
+  async function renderLeaderboards() {
+    if (!elements.pointsLeaderboard || !elements.masteredLeaderboard) {
+      return;
+    }
+
+    if (!supabaseClient) {
+      renderLeaderboardList(elements.pointsLeaderboard, []);
+      renderLeaderboardList(elements.masteredLeaderboard, []);
+      return;
+    }
+
+    const { data, error } = await supabaseClient.rpc("get_spell_battle_leaderboards");
+
+    if (error) {
+      renderLeaderboardError(elements.pointsLeaderboard, "Leaderboard unavailable");
+      renderLeaderboardError(elements.masteredLeaderboard, "Leaderboard unavailable");
+      return;
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    renderLeaderboardList(
+      elements.pointsLeaderboard,
+      rows.filter((row) => row.leaderboard_type === "points")
+    );
+    renderLeaderboardList(
+      elements.masteredLeaderboard,
+      rows.filter((row) => row.leaderboard_type === "mastered")
+    );
+  }
+
+  function renderLeaderboardList(element, rows) {
+    element.innerHTML = "";
+
+    if (!rows || rows.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "leaderboard-empty";
+      empty.textContent = "No scores yet";
+      element.appendChild(empty);
+      return;
+    }
+
+    rows.slice(0, 10).forEach((row) => {
+      const item = document.createElement("li");
+      const name = row.username || "Player";
+      const score = Number(row.score || 0);
+      item.innerHTML = `<span><strong>#${row.rank}</strong> ${escapeHtml(name)}</span><b>${score}</b>`;
+      element.appendChild(item);
+    });
+  }
+
+  function renderLeaderboardError(element, message) {
+    element.innerHTML = "";
+    const item = document.createElement("li");
+    item.className = "leaderboard-empty";
+    item.textContent = message;
+    element.appendChild(item);
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+function setupVoicePicker() {
     if (!("speechSynthesis" in window)) {
       elements.voiceControl.hidden = true;
       return;
