@@ -166,8 +166,10 @@
           <label for="battleCardSelect">Your fighter</label>
           <select id="battleCardSelect"></select>
           <button class="primary-button" id="enterBattleButton" type="button">Battle</button>
+          <button class="secondary-button" id="cancelBattleButton" type="button" hidden>Cancel waiting battle</button>
         </div>
         <p class="feedback is-info" id="battleStatus" aria-live="polite">Sign in to battle.</p>
+        <p class="small-note battle-queue-count" id="battleQueueCount">Arena queue loading…</p>
         <p class="small-note" id="battleOpponent"></p>
         <div class="battle-grid" id="battleGrid" aria-label="Battle chance grid"></div>
         <p class="feedback" id="battleResult" aria-live="polite"></p>

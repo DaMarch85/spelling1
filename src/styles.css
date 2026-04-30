@@ -1215,3 +1215,45 @@ form {
     min-height: 9.75rem;
   }
 }
+
+
+/* Battle lobby / waiting-room improvements */
+.battle-queue-count {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 2rem;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 800;
+}
+
+body.is-battle-waiting .game-card,
+body.is-battle-waiting .stats-card,
+body.is-battle-waiting .shop-card,
+body.is-battle-waiting .album-card,
+body.is-battle-waiting .pack-card,
+body.is-battle-waiting .level-card,
+body.is-battle-waiting .site-header {
+  opacity: 0.35;
+  pointer-events: none;
+  filter: grayscale(0.25);
+}
+
+body.is-battle-waiting .battle-card {
+  position: relative;
+  z-index: 5;
+  border-color: rgba(255, 130, 79, 0.85);
+  box-shadow: 0 0 0 3px rgba(255, 130, 79, 0.18), 0 24px 70px rgba(0, 0, 0, 0.46);
+}
+
+body.is-battle-waiting .battle-card::before {
+  content: "Battle lobby open";
+  display: block;
+  margin-bottom: 0.75rem;
+  color: #ffd6a3;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

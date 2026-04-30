@@ -39,6 +39,9 @@
   const WRONG_REVIEW_GAP = 2;
   const AUTO_ADVANCE_MS = 1500;
   const WRONG_AUTO_ADVANCE_MS = 6500;
+  const BATTLE_WAIT_TIMEOUT_MS = 120000;
+  const BATTLE_HEARTBEAT_STALE_MS = 15000;
+  const BATTLE_LOBBY_REFRESH_MS = 5000;
 
 
   const SIMPLE_SENTENCES = Object.freeze({
@@ -1266,7 +1269,9 @@
     battleStatus: document.querySelector("#battleStatus"),
     battleOpponent: document.querySelector("#battleOpponent"),
     battleGrid: document.querySelector("#battleGrid"),
-    battleResult: document.querySelector("#battleResult")
+    battleResult: document.querySelector("#battleResult"),
+    battleQueueCount: document.querySelector("#battleQueueCount"),
+    cancelBattleButton: document.querySelector("#cancelBattleButton")
   };
 
   let state = loadState();
@@ -1281,6 +1286,7 @@
   let currentBattle = null;
   let currentBattlePointSpent = false;
   let battlePollTimer = null;
+  let battleLobbyTimer = null;
 
   initialise();
 
@@ -1309,6 +1315,9 @@
     elements.signUpButton.addEventListener("click", signUpUser);
     elements.signOutButton.addEventListener("click", signOutUser);
     elements.enterBattleButton.addEventListener("click", enterBattleArena);
+    if (elements.cancelBattleButton) {
+      elements.cancelBattleButton.addEventListener("click", cancelWaitingBattle);
+    }
     if (elements.battleArenaJump) {
       elements.battleArenaJump.addEventListener("click", () => elements.battlePanel.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
@@ -1322,6 +1331,8 @@
     renderCollection();
     renderPacks();
     renderBattlePanel();
+    refreshBattleLobbyCount();
+    startBattleLobbyRefresh();
     renderDueBadge();
   }
 
@@ -1888,7 +1899,7 @@
   function renderStats() {
     const masteredCount = WORDS.filter((word) => state.progress[word].mastered).length;
     const ownedCount = state.ownedCards.length;
-    const availableCount = getAvailableCardIndexes().length;
+    const availableCount = getShopCardIndexes().length;
     const currentPackProgress = getCurrentPackProgress();
     const unlockedCount = (state.unlockedPackIds || []).length;
     const spareUnlocks = Math.max(0, getPackUnlockSlots(state) - unlockedCount);
@@ -1932,9 +1943,14 @@
     elements.dueCount.textContent = String(state.queue.length);
   }
 
-  function renderShop() {
-    const availableIndexes = getAvailableCardIndexes();
+  function getShopCardIndexes() {
     const ownedSet = new Set(state.ownedCards.map((card) => card.index));
+    return getAvailableCardIndexes().filter((index) => !ownedSet.has(index));
+  }
+
+  function renderShop() {
+    const ownedSet = new Set(state.ownedCards.map((card) => card.index));
+    const availableIndexes = getShopCardIndexes();
     const spareUnlocks = Math.max(0, getPackUnlockSlots(state) - (state.unlockedPackIds || []).length);
     const lockedCount = ACTIVE_CARD_PACKS.filter((pack) => !isPackUnlocked(pack.id)).length;
 
@@ -1954,26 +1970,19 @@
       const button = node.querySelector("button");
 
       if (owned) {
-        populateRevealedCardNode(node, template, `Card ${index + 1} of ${ACTIVE_CREATURE_CARD_TEMPLATES.length}`, cardCost);
-        article.classList.add("is-owned");
-        if (index === lastPurchasedIndex) {
-          article.classList.add("is-flipping");
-          window.setTimeout(() => { lastPurchasedIndex = null; }, 950);
-        }
-        button.textContent = "Owned";
-        button.disabled = true;
+        continue;
+      }
+
+      populateMysteryCardNode(node, template, `${getPackById(template.packId).shortName} pack`, cardCost);
+      article.classList.add("is-mystery");
+      button.dataset.cardIndex = String(index);
+      if (affordable) {
+        button.textContent = `Buy for ${cardCost}`;
+        button.disabled = false;
       } else {
-        populateMysteryCardNode(node, template, `${getPackById(template.packId).shortName} pack`, cardCost);
-        article.classList.add("is-mystery");
-        button.dataset.cardIndex = String(index);
-        if (affordable) {
-          button.textContent = `Buy for ${cardCost}`;
-          button.disabled = false;
-        } else {
-          button.textContent = `Need ${cardCost}`;
-          button.disabled = true;
-          article.classList.add("is-unaffordable");
-        }
+        button.textContent = `Need ${cardCost}`;
+        button.disabled = true;
+        article.classList.add("is-unaffordable");
       }
 
       elements.shopGrid.appendChild(node);
@@ -2715,6 +2724,131 @@ function scoreWord(word) {
     saveState();
   }
 
+  function getBattleHeartbeatCutoffIso() {
+    return new Date(Date.now() - BATTLE_HEARTBEAT_STALE_MS).toISOString();
+  }
+
+  function getBattleWaitTimeoutIso() {
+    return new Date(Date.now() - BATTLE_WAIT_TIMEOUT_MS).toISOString();
+  }
+
+  function setBattleWaitingUi(isWaiting) {
+    document.body.classList.toggle("is-battle-waiting", Boolean(isWaiting));
+    if (elements.cancelBattleButton) {
+      elements.cancelBattleButton.hidden = !isWaiting;
+    }
+    if (elements.enterBattleButton) {
+      elements.enterBattleButton.hidden = Boolean(isWaiting);
+    }
+    if (elements.battleCardSelect && isWaiting) {
+      elements.battleCardSelect.disabled = true;
+    }
+  }
+
+  async function refreshBattleLobbyCount() {
+    if (!elements.battleQueueCount) return;
+
+    if (!supabaseClient || !currentUser) {
+      elements.battleQueueCount.textContent = "Sign in to see the arena queue.";
+      return;
+    }
+
+    const { count, error } = await supabaseClient
+      .from("battle_rooms")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "waiting")
+      .neq("challenger_id", currentUser.id)
+      .gte("heartbeat_at", getBattleHeartbeatCutoffIso());
+
+    if (error) {
+      elements.battleQueueCount.textContent = "Arena queue loading…";
+      return;
+    }
+
+    const waiting = Number(count || 0);
+    elements.battleQueueCount.textContent = waiting === 1
+      ? "1 other player waiting"
+      : `${waiting} other players waiting`;
+  }
+
+  function startBattleLobbyRefresh() {
+    if (battleLobbyTimer) {
+      window.clearInterval(battleLobbyTimer);
+    }
+    battleLobbyTimer = window.setInterval(refreshBattleLobbyCount, BATTLE_LOBBY_REFRESH_MS);
+  }
+
+  async function sendBattleHeartbeat() {
+    if (!supabaseClient || !currentUser || !currentBattle || currentBattle.status !== "waiting") {
+      return;
+    }
+
+    const { error } = await supabaseClient
+      .from("battle_rooms")
+      .update({ heartbeat_at: new Date().toISOString() })
+      .eq("id", currentBattle.id)
+      .eq("challenger_id", currentUser.id)
+      .eq("status", "waiting");
+
+    if (!error) {
+      currentBattle.heartbeat_at = new Date().toISOString();
+    }
+  }
+
+  async function cancelOwnStaleWaitingBattles() {
+    if (!supabaseClient || !currentUser) return;
+
+    await supabaseClient
+      .from("battle_rooms")
+      .update({ status: "cancelled" })
+      .eq("challenger_id", currentUser.id)
+      .eq("status", "waiting")
+      .lt("created_at", getBattleWaitTimeoutIso());
+  }
+
+  async function cancelWaitingBattle() {
+    if (!supabaseClient || !currentUser || !currentBattle || currentBattle.status !== "waiting") {
+      currentBattle = null;
+      currentBattlePointSpent = false;
+      setBattleWaitingUi(false);
+      renderBattlePanel();
+      return;
+    }
+
+    await supabaseClient
+      .from("battle_rooms")
+      .update({ status: "cancelled" })
+      .eq("id", currentBattle.id)
+      .eq("challenger_id", currentUser.id)
+      .eq("status", "waiting");
+
+    stopBattlePolling();
+    currentBattle = null;
+    currentBattlePointSpent = false;
+    setBattleWaitingUi(false);
+    setBattleWaitingUi(false);
+    elements.battleStatus.textContent = "Battle cancelled. You kept your battle point.";
+    elements.battleOpponent.textContent = "";
+    elements.battleResult.textContent = "";
+    renderBattlePanel();
+    refreshBattleLobbyCount();
+  }
+
+  async function cancelWaitingBattleIfExpired() {
+    if (!currentBattle || currentBattle.status !== "waiting") {
+      return false;
+    }
+
+    const createdAt = new Date(currentBattle.created_at || Date.now()).getTime();
+    if (Date.now() - createdAt < BATTLE_WAIT_TIMEOUT_MS) {
+      return false;
+    }
+
+    await cancelWaitingBattle();
+    elements.battleStatus.textContent = "No opponent joined in time, so the battle was cancelled. You kept your battle point.";
+    return true;
+  }
+
   function renderBattlePanel() {
     if (!elements.battlePanel) return;
 
@@ -2730,16 +2864,23 @@ function scoreWord(word) {
       elements.battleCardSelect.appendChild(option);
     }
 
+    const isWaiting = Boolean(currentBattle && currentBattle.status === "waiting");
+    setBattleWaitingUi(isWaiting);
+
     const battlePoints = Number(state.battlePoints || 0);
     const canBattle = Boolean(currentUser && supabaseClient && ownedCards.length > 0 && battlePoints > 0 && !currentBattle);
-    elements.battleCardSelect.disabled = !canBattle;
+    elements.battleCardSelect.disabled = !canBattle || isWaiting;
     elements.enterBattleButton.disabled = !canBattle;
 
     if (elements.battlePointNextText) {
       elements.battlePointNextText.textContent = `Next battle point in ${getCorrectSpellingsUntilBattlePoint()} words time`;
     }
 
-    if (!currentUser) {
+    refreshBattleLobbyCount();
+
+    if (isWaiting) {
+      elements.battleStatus.textContent = "Waiting for an opponent. Keep this battle lobby open, or cancel to leave without spending a battle point.";
+    } else if (!currentUser) {
       elements.battleStatus.textContent = "Sign in to battle.";
     } else if (ownedCards.length === 0) {
       elements.battleStatus.textContent = "Buy a card to battle.";
@@ -2772,6 +2913,7 @@ function scoreWord(word) {
     elements.enterBattleButton.disabled = true;
     elements.battleResult.textContent = "";
     renderBattleGrid(0.5);
+    await cancelOwnStaleWaitingBattles();
 
     const attackStrength = await getOrCreateBattleStrength(ownedCard);
     const displayName = getCurrentUsername();
@@ -2781,6 +2923,8 @@ function scoreWord(word) {
       .select("*")
       .eq("status", "waiting")
       .neq("challenger_id", currentUser.id)
+      .gte("heartbeat_at", getBattleHeartbeatCutoffIso())
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
 
@@ -2822,6 +2966,7 @@ function scoreWord(word) {
         challenger_card_index: ownedCard.index,
         challenger_card_id: ownedCard.id || null,
         challenger_attack: attackStrength,
+        heartbeat_at: new Date().toISOString(),
         status: "waiting"
       })
       .select()
@@ -2835,7 +2980,8 @@ function scoreWord(word) {
 
     currentBattlePointSpent = false;
     currentBattle = createdBattle;
-    elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index].name} strength: ${attackStrength}.`;
+    setBattleWaitingUi(true);
+    elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index].name} strength: ${attackStrength}. Keep this lobby open, or cancel to leave.`;
     elements.battleOpponent.textContent = "";
     startBattlePolling(createdBattle.id);
   }
@@ -2888,6 +3034,12 @@ function scoreWord(word) {
       if (!data) return;
       currentBattle = data;
 
+      if (data.status === "waiting") {
+        await sendBattleHeartbeat();
+        await cancelWaitingBattleIfExpired();
+        return;
+      }
+
       if (data.status === "ready") {
         renderMatchedBattle(data);
         if (!currentBattlePointSpent) {
@@ -2897,12 +3049,20 @@ function scoreWord(word) {
         await resolveCurrentBattle();
       } else if (data.status === "resolved") {
         stopBattlePolling();
+        setBattleWaitingUi(false);
         await showResolvedBattle(data);
         await refreshCardsFromSupabase();
         renderStats();
         renderShop();
         renderCollection();
         renderPacks();
+      } else if (data.status === "cancelled") {
+        stopBattlePolling();
+        currentBattle = null;
+        currentBattlePointSpent = false;
+        setBattleWaitingUi(false);
+        elements.battleStatus.textContent = "Battle cancelled. You kept your battle point.";
+        renderBattlePanel();
       }
     }, 2500);
   }
