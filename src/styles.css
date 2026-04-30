@@ -1106,3 +1106,15 @@ body {
 .monster-card.is-showing-history .monster-card__footer {
   display: none;
 }
+
+.level-card.is-collapsed .level-grid {
+  display: none;
+}
+
+.level-card.is-collapsed {
+  padding-bottom: 1rem;
+}
+
+.level-toggle-button {
+  white-space: nowrap;
+}

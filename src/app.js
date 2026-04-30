@@ -1213,6 +1213,7 @@
     levelPanel: document.querySelector("#levelPanel"),
     levelGrid: document.querySelector("#levelGrid"),
     levelStatus: document.querySelector("#levelStatus"),
+    levelToggleButton: document.querySelector("#levelToggleButton"),
     wordLevelBadge: document.querySelector("#wordLevelBadge"),
     refreshButton: document.querySelector("#refreshButton"),
     restingPanel: document.querySelector("#restingPanel"),
@@ -1269,6 +1270,7 @@
   };
 
   let state = loadState();
+  let levelPanelCollapsed = Boolean(state && state.selectedLevel);
   let currentWord = null;
   let autoAdvanceTimer = null;
   let availableVoices = [];
@@ -1289,11 +1291,19 @@
     elements.hintButton.addEventListener("click", showHint);
     elements.revealWordButton.addEventListener("click", revealCurrentWord);
     elements.skipButton.addEventListener("click", skipCurrentWord);
-    elements.resetButton.addEventListener("click", resetProgress);
+    if (elements.resetButton) {
+      elements.resetButton.addEventListener("click", resetProgress);
+    }
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
     elements.collectionGrid.addEventListener("click", handleCollectionClick);
     elements.levelGrid.addEventListener("click", handleLevelChoice);
+    if (elements.levelToggleButton) {
+      elements.levelToggleButton.addEventListener("click", () => {
+        levelPanelCollapsed = !levelPanelCollapsed;
+        renderLevelSelector();
+      });
+    }
     elements.packGrid.addEventListener("click", handlePackClick);
     elements.signInButton.addEventListener("click", signInUser);
     elements.signUpButton.addEventListener("click", signUpUser);
@@ -1404,8 +1414,18 @@
     }
 
     const hasLevel = Boolean(state && state.selectedLevel);
+    if (!hasLevel) {
+      levelPanelCollapsed = false;
+    }
     elements.levelPanel.hidden = false;
+    elements.levelPanel.classList.toggle("is-collapsed", Boolean(hasLevel && levelPanelCollapsed));
     elements.levelGrid.innerHTML = "";
+
+    if (elements.levelToggleButton) {
+      elements.levelToggleButton.hidden = !hasLevel;
+      elements.levelToggleButton.textContent = levelPanelCollapsed ? "Change level" : "Hide levels";
+      elements.levelToggleButton.setAttribute("aria-expanded", String(!levelPanelCollapsed));
+    }
 
     elements.levelStatus.textContent = hasLevel
       ? `Current level ${state.selectedLevel}. You can change it at any time.`
@@ -1440,6 +1460,7 @@
 
   function chooseStartingLevel(level) {
     state = makeInitialState(level);
+    levelPanelCollapsed = true;
     currentWord = null;
     clearAutoAdvance();
     saveState();
@@ -1638,7 +1659,7 @@
     clearFeedback();
     renderCurrentWord();
     renderDueBadge();
-    elements.answerInput.focus();
+    focusAnswerInput();
   }
 
   function renderCurrentWord() {

@@ -4,14 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="A spelling, card collecting, and battle game for kids." />
-    <title>Spell Battle Cards</title>
+    <title>Spelling Battle Cards</title>
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div>
         <p class="eyebrow">Spelling · Cards · Battles</p>
-        <h1>Spell Battle Cards</h1>
+        <h1>Spelling Battle Cards</h1>
         <p class="lede">Spell words, earn points, buy cards, unlock packs, and battle other players.</p>
       </div>
       <div class="header-actions auth-card auth-card--compact" id="authPanel" aria-label="Account">
@@ -23,7 +23,6 @@
         <button class="secondary-button" id="signUpButton" type="button">Create account</button>
         <button class="secondary-button" id="signOutButton" type="button" hidden>Sign out</button>
         <p class="small-note" id="authStatus">Checking account status…</p>
-        <button class="secondary-button reset-inline" id="resetButton" type="button">Reset</button>
       </div>
     </header>
 
@@ -33,6 +32,7 @@
           <h2 id="levelTitle">Choose your starting level</h2>
           <p class="small-note" id="levelStatus">Pick the level that feels right.</p>
         </div>
+        <button class="secondary-button level-toggle-button" id="levelToggleButton" type="button">Hide levels</button>
       </div>
       <div class="level-grid" id="levelGrid"></div>
     </section>
