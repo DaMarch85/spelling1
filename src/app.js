@@ -2986,6 +2986,73 @@ function scoreWord(word) {
     startBattlePolling(createdBattle.id);
   }
 
+  async function tryMatchWhileWaiting() {
+    if (!supabaseClient || !currentUser || !currentBattle || currentBattle.status !== "waiting") {
+      return false;
+    }
+
+    const currentCreatedAt = currentBattle.created_at || new Date().toISOString();
+    const { data: waitingBattle, error: findError } = await supabaseClient
+      .from("battle_rooms")
+      .select("*")
+      .eq("status", "waiting")
+      .neq("challenger_id", currentUser.id)
+      .gte("heartbeat_at", getBattleHeartbeatCutoffIso())
+      .lt("created_at", currentCreatedAt)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (findError || !waitingBattle) {
+      return false;
+    }
+
+    const selectedId = String(elements.battleCardSelect.value || "");
+    const ownedCard = state.ownedCards.find((card) => String(card.id || `${card.index}-${card.purchasedAt}`) === selectedId);
+    if (!ownedCard) {
+      elements.battleStatus.textContent = "Choose a card you own.";
+      return false;
+    }
+
+    const attackStrength = await getOrCreateBattleStrength(ownedCard);
+    const displayName = getCurrentUsername();
+    const ownWaitingBattleId = currentBattle.id;
+
+    const { data: joinedBattle, error: joinError } = await supabaseClient
+      .from("battle_rooms")
+      .update({
+        opponent_id: currentUser.id,
+        opponent_name: displayName,
+        opponent_card_index: ownedCard.index,
+        opponent_card_id: ownedCard.id || null,
+        opponent_attack: attackStrength,
+        status: "ready"
+      })
+      .eq("id", waitingBattle.id)
+      .eq("status", "waiting")
+      .select()
+      .single();
+
+    if (joinError || !joinedBattle) {
+      return false;
+    }
+
+    await supabaseClient
+      .from("battle_rooms")
+      .update({ status: "cancelled" })
+      .eq("id", ownWaitingBattleId)
+      .eq("challenger_id", currentUser.id)
+      .eq("status", "waiting");
+
+    spendBattlePoint();
+    currentBattlePointSpent = true;
+    currentBattle = joinedBattle;
+    setBattleWaitingUi(false);
+    renderMatchedBattle(joinedBattle);
+    await resolveCurrentBattle();
+    return true;
+  }
+
   function spendBattlePoint() {
     state.battlePoints = Math.max(0, Number(state.battlePoints || 0) - 1);
     saveState();
@@ -3036,7 +3103,10 @@ function scoreWord(word) {
 
       if (data.status === "waiting") {
         await sendBattleHeartbeat();
-        await cancelWaitingBattleIfExpired();
+        const expired = await cancelWaitingBattleIfExpired();
+        if (!expired) {
+          await tryMatchWhileWaiting();
+        }
         return;
       }
 
