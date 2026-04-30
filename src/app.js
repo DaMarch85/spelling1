@@ -33,6 +33,8 @@
   const CARD_PRICE_GROUP_SIZE = 5;
   const INITIAL_UNLOCKED_PACK_ID = "prehistoric";
   const PACK_UNLOCK_REMAINING_TRIGGER = 5;
+  const CARDS_PER_PACK_UNLOCK = 7;
+  const FREE_EXTRA_PACK_UNLOCKS = 1;
   const ACTIVE_WORD_TARGET = 5;
   const FIRST_CORRECT_REVIEW_GAP = 4;
   const SECOND_CORRECT_REVIEW_GAP = 8;
@@ -1113,7 +1115,13 @@
     { id: "solar-system", name: "Solar System", shortName: "Space", description: "Planets, moons, and cosmic wonders.", unlockHint: "Available after you earn a pack unlock." },
     { id: "uk-animals", name: "UK Animals", shortName: "UK Animals", description: "Familiar wildlife from woods, coasts, rivers, and moorland.", unlockHint: "Available after you earn a pack unlock." },
     { id: "flowers", name: "Flowers", shortName: "Flowers", description: "Beautiful flower cards with colourful artwork.", unlockHint: "Available after you earn a pack unlock." },
-    { id: "greek-gods", name: "Greek Gods", shortName: "Olympus", description: "Dramatic gods and goddesses from ancient Greek myths.", unlockHint: "Available after you earn a pack unlock." }
+    { id: "greek-gods", name: "Greek Gods", shortName: "Olympus", description: "Dramatic gods and goddesses from ancient Greek myths.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "prehistoric-2", name: "Dinosaurs & Prehistoric Beasts 2", shortName: "Dinos II", description: "More giant dinosaurs, sky hunters, and prehistoric creatures.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "snakes", name: "Snakes & Serpents", shortName: "Snakes", description: "Slithering snakes and striking serpents from around the world.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "cute-animals", name: "Cute Animals", shortName: "Cute", description: "Adorable animals in a softer, sweeter art style.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "farts", name: "Fart Force", shortName: "Farts", description: "Silly, comic-style fart cards made for maximum giggles.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "dragons", name: "Dragons of the Elements", shortName: "Dragons", description: "Powerful dragons themed around fire, ice, storms, shadows, and more.", unlockHint: "Available after you earn a pack unlock." },
+    { id: "desserts", name: "Sweet Treats", shortName: "Desserts", description: "Delicious desserts in a bright, playful style.", unlockHint: "Available after you earn a pack unlock." }
   ]);
 
   const ADDITIONAL_CREATURE_CARD_TEMPLATES = Object.freeze([
@@ -1176,7 +1184,79 @@
     { packId: "greek-gods", name: "Hermes", slug: "hermes", type: "God", tagline: "Swift messenger god with winged sandals", description: "Swift messenger god with winged sandals.", art: "src/card-art/hermes.webp" },
     { packId: "greek-gods", name: "Demeter", slug: "demeter", type: "Goddess", tagline: "Goddess of harvest and fertile fields", description: "Goddess of harvest and fertile fields.", art: "src/card-art/demeter.webp" },
     { packId: "greek-gods", name: "Hades", slug: "hades", type: "God", tagline: "Ruler of the underworld and its shadows", description: "Ruler of the underworld and its shadows.", art: "src/card-art/hades.webp" },
-    { packId: "greek-gods", name: "Hephaestus", slug: "hephaestus", type: "God", tagline: "Master smith of fire and the forge", description: "Master smith of fire and the forge.", art: "src/card-art/hephaestus.webp" }
+    { packId: "greek-gods", name: "Hephaestus", slug: "hephaestus", type: "God", tagline: "Master smith of fire and the forge", description: "Master smith of fire and the forge.", art: "src/card-art/hephaestus.webp" },
+    { packId: "prehistoric-2", name: "Argentinosaurus", slug: "argentinosaurus", type: "Dinosaur", tagline: "One of the largest dinosaurs to ever walk the Earth", description: "One of the largest dinosaurs to ever walk the Earth.", art: "src/card-art/argentinosaurus.webp" },
+    { packId: "prehistoric-2", name: "Stygimoloch", slug: "stygimoloch", type: "Dinosaur", tagline: "A spiky-headed dinosaur built for charging", description: "A spiky-headed dinosaur built for charging.", art: "src/card-art/stygimoloch.webp" },
+    { packId: "prehistoric-2", name: "Parasaurolophus", slug: "parasaurolophus", type: "Dinosaur", tagline: "A crested dinosaur calling across the wetlands", description: "A crested dinosaur calling across the wetlands.", art: "src/card-art/parasaurolophus.webp" },
+    { packId: "prehistoric-2", name: "Archaeopteryx", slug: "archaeopteryx", type: "Prehistoric Bird", tagline: "A feathered link between dinosaurs and birds", description: "A feathered link between dinosaurs and birds.", art: "src/card-art/archaeopteryx.webp" },
+    { packId: "prehistoric-2", name: "Pachycephalosaurus", slug: "pachycephalosaurus", type: "Dinosaur", tagline: "A dome-headed dinosaur built for headbutts", description: "A dome-headed dinosaur built for headbutts.", art: "src/card-art/pachycephalosaurus.webp" },
+    { packId: "prehistoric-2", name: "Iguanodon", slug: "iguanodon", type: "Dinosaur", tagline: "A strong herbivore with a thumb spike", description: "A strong herbivore with a thumb spike.", art: "src/card-art/iguanodon.webp" },
+    { packId: "prehistoric-2", name: "Dunkleosteus", slug: "dunkleosteus", type: "Prehistoric Fish", tagline: "An armoured fish with crushing jaws", description: "An armoured fish with crushing jaws.", art: "src/card-art/dunkleosteus.webp" },
+    { packId: "prehistoric-2", name: "Megatherium", slug: "megatherium", type: "Prehistoric Mammal", tagline: "A giant ground sloth towering above the grass", description: "A giant ground sloth towering above the grass.", art: "src/card-art/megatherium.webp" },
+    { packId: "prehistoric-2", name: "Woolly Mammoth", slug: "woolly-mammoth", type: "Prehistoric Mammal", tagline: "A shaggy Ice Age giant with curling tusks", description: "A shaggy Ice Age giant with curling tusks.", art: "src/card-art/woolly-mammoth.webp" },
+    { packId: "prehistoric-2", name: "Megaloceros", slug: "megaloceros", type: "Prehistoric Mammal", tagline: "A giant deer with enormous antlers", description: "A giant deer with enormous antlers.", art: "src/card-art/megaloceros.webp" },
+    { packId: "prehistoric-2", name: "Dimetrodon", slug: "dimetrodon", type: "Prehistoric Beast", tagline: "A sail-backed predator from deep prehistory", description: "A sail-backed predator from deep prehistory.", art: "src/card-art/dimetrodon.webp" },
+    { packId: "prehistoric-2", name: "Elasmosaurus", slug: "elasmosaurus", type: "Sea Reptile", tagline: "A long-necked swimmer from ancient oceans", description: "A long-necked swimmer from ancient oceans.", art: "src/card-art/elasmosaurus.webp" },
+    { packId: "snakes", name: "Emerald Tree Boa", slug: "emerald-tree-boa", type: "Snake", tagline: "A bright green boa coiled in the jungle canopy", description: "A bright green boa coiled in the jungle canopy.", art: "src/card-art/emerald-tree-boa.webp" },
+    { packId: "snakes", name: "Black Mamba", slug: "black-mamba", type: "Snake", tagline: "A lightning-fast snake with a fearsome reputation", description: "A lightning-fast snake with a fearsome reputation.", art: "src/card-art/black-mamba.webp" },
+    { packId: "snakes", name: "Ball Python", slug: "ball-python", type: "Snake", tagline: "A beautifully patterned python curled in a ball", description: "A beautifully patterned python curled in a ball.", art: "src/card-art/ball-python.webp" },
+    { packId: "snakes", name: "Rattlesnake", slug: "rattlesnake", type: "Snake", tagline: "A desert snake with a warning rattle", description: "A desert snake with a warning rattle.", art: "src/card-art/rattlesnake.webp" },
+    { packId: "snakes", name: "Green Anaconda", slug: "green-anaconda", type: "Snake", tagline: "A giant river constrictor in the swamp", description: "A giant river constrictor in the swamp.", art: "src/card-art/green-anaconda.webp" },
+    { packId: "snakes", name: "Coral Snake", slug: "coral-snake", type: "Snake", tagline: "A colourful snake striped in warning colours", description: "A colourful snake striped in warning colours.", art: "src/card-art/coral-snake.webp" },
+    { packId: "snakes", name: "Gaboon Viper", slug: "gaboon-viper", type: "Snake", tagline: "A heavy viper hidden among fallen leaves", description: "A heavy viper hidden among fallen leaves.", art: "src/card-art/gaboon-viper.webp" },
+    { packId: "snakes", name: "Reticulated Python", slug: "reticulated-python", type: "Snake", tagline: "A giant python wrapped in net-like markings", description: "A giant python wrapped in net-like markings.", art: "src/card-art/reticulated-python.webp" },
+    { packId: "snakes", name: "Sidewinder", slug: "sidewinder", type: "Snake", tagline: "A desert snake that glides sideways over sand", description: "A desert snake that glides sideways over sand.", art: "src/card-art/sidewinder.webp" },
+    { packId: "snakes", name: "Sea Krait", slug: "sea-krait", type: "Sea Snake", tagline: "A striped sea snake gliding through coral water", description: "A striped sea snake gliding through coral water.", art: "src/card-art/sea-krait.webp" },
+    { packId: "snakes", name: "Boomslang", slug: "boomslang", type: "Snake", tagline: "A green tree snake watching from the branches", description: "A green tree snake watching from the branches.", art: "src/card-art/boomslang.webp" },
+    { packId: "snakes", name: "Flying Snake", slug: "flying-snake", type: "Snake", tagline: "A gliding snake stretched between the trees", description: "A gliding snake stretched between the trees.", art: "src/card-art/flying-snake.webp" },
+    { packId: "cute-animals", name: "Red Panda", slug: "red-panda", type: "Animal", tagline: "A fluffy red panda peeking through leaves", description: "A fluffy red panda peeking through leaves.", art: "src/card-art/red-panda.webp" },
+    { packId: "cute-animals", name: "Quokka", slug: "quokka", type: "Animal", tagline: "A cheerful quokka smiling on a sunny beach", description: "A cheerful quokka smiling on a sunny beach.", art: "src/card-art/quokka.webp" },
+    { packId: "cute-animals", name: "Fennec Fox", slug: "fennec-fox", type: "Animal", tagline: "A tiny fox with enormous ears", description: "A tiny fox with enormous ears.", art: "src/card-art/fennec-fox.webp" },
+    { packId: "cute-animals", name: "Capybara", slug: "capybara", type: "Animal", tagline: "A calm capybara relaxing in warm water", description: "A calm capybara relaxing in warm water.", art: "src/card-art/capybara.webp" },
+    { packId: "cute-animals", name: "Axolotl", slug: "axolotl", type: "Animal", tagline: "A smiling axolotl with frilly pink gills", description: "A smiling axolotl with frilly pink gills.", art: "src/card-art/axolotl.webp" },
+    { packId: "cute-animals", name: "Pygmy Hedgehog", slug: "pygmy-hedgehog", type: "Animal", tagline: "A tiny hedgehog curled among flowers", description: "A tiny hedgehog curled among flowers.", art: "src/card-art/pygmy-hedgehog.webp" },
+    { packId: "cute-animals", name: "Sea Otter", slug: "sea-otter", type: "Animal", tagline: "A playful otter floating on its back", description: "A playful otter floating on its back.", art: "src/card-art/sea-otter.webp" },
+    { packId: "cute-animals", name: "Slow Loris", slug: "slow-loris", type: "Animal", tagline: "A wide-eyed slow loris clinging to a branch", description: "A wide-eyed slow loris clinging to a branch.", art: "src/card-art/slow-loris.webp" },
+    { packId: "cute-animals", name: "Highland Calf", slug: "highland-calf", type: "Animal", tagline: "A fluffy Highland calf in a meadow", description: "A fluffy Highland calf in a meadow.", art: "src/card-art/highland-calf.webp" },
+    { packId: "cute-animals", name: "Penguin Chick", slug: "penguin-chick", type: "Animal", tagline: "A round penguin chick on the ice", description: "A round penguin chick on the ice.", art: "src/card-art/penguin-chick.webp" },
+    { packId: "cute-animals", name: "Koala", slug: "koala", type: "Animal", tagline: "A sleepy koala hugging a eucalyptus branch", description: "A sleepy koala hugging a eucalyptus branch.", art: "src/card-art/koala.webp" },
+    { packId: "cute-animals", name: "Baby Seal", slug: "baby-seal", type: "Animal", tagline: "A soft baby seal resting on the shore", description: "A soft baby seal resting on the shore.", art: "src/card-art/baby-seal.webp" },
+    { packId: "farts", name: "Trumpet Toot", slug: "trumpet-toot", type: "Fart", tagline: "A loud blast worthy of a brass band", description: "A loud blast worthy of a brass band.", art: "src/card-art/trumpet-toot.webp" },
+    { packId: "farts", name: "Bubble Pop", slug: "bubble-pop", type: "Fart", tagline: "A bubbly burst with comic-book energy", description: "A bubbly burst with comic-book energy.", art: "src/card-art/bubble-pop.webp" },
+    { packId: "farts", name: "Sneaky Squeak", slug: "sneaky-squeak", type: "Fart", tagline: "A tiny squeak that slips out unnoticed", description: "A tiny squeak that slips out unnoticed.", art: "src/card-art/sneaky-squeak.webp" },
+    { packId: "farts", name: "Thunder Rumble", slug: "thunder-rumble", type: "Fart", tagline: "A booming rumble that rattles the room", description: "A booming rumble that rattles the room.", art: "src/card-art/thunder-rumble.webp" },
+    { packId: "farts", name: "Sofa Parp", slug: "sofa-parp", type: "Fart", tagline: "A sofa-powered parp of pure laziness", description: "A sofa-powered parp of pure laziness.", art: "src/card-art/sofa-parp.webp" },
+    { packId: "farts", name: "Rocket Blast", slug: "rocket-blast", type: "Fart", tagline: "A rocket-powered blast with extra lift", description: "A rocket-powered blast with extra lift.", art: "src/card-art/rocket-blast.webp" },
+    { packId: "farts", name: "Swamp Gas", slug: "swamp-gas", type: "Fart", tagline: "A swampy green cloud of silly stink", description: "A swampy green cloud of silly stink.", art: "src/card-art/swamp-gas.webp" },
+    { packId: "farts", name: "Whoopee Whirlwind", slug: "whoopee-whirlwind", type: "Fart", tagline: "A spinning storm of pure toilet humour", description: "A spinning storm of pure toilet humour.", art: "src/card-art/whoopee-whirlwind.webp" },
+    { packId: "farts", name: "Dragon Burp", slug: "dragon-burp", type: "Fart", tagline: "A dragon-powered cloud of comic chaos", description: "A dragon-powered cloud of comic chaos.", art: "src/card-art/dragon-burp.webp" },
+    { packId: "farts", name: "Invisible Whiff", slug: "invisible-whiff", type: "Fart", tagline: "Silent, stealthy, and impossible to prove", description: "Silent, stealthy, and impossible to prove.", art: "src/card-art/invisible-whiff.webp" },
+    { packId: "farts", name: "Stink Cloud", slug: "stink-cloud", type: "Fart", tagline: "A pongy puff that sends flies buzzing", description: "A pongy puff that sends flies buzzing.", art: "src/card-art/stink-cloud.webp" },
+    { packId: "farts", name: "Royal Raspberry", slug: "royal-raspberry", type: "Fart", tagline: "A royal raspberry from the throne room", description: "A royal raspberry from the throne room.", art: "src/card-art/royal-raspberry.webp" },
+    { packId: "dragons", name: "Ember Dragon", slug: "ember-dragon", type: "Dragon", tagline: "A blazing dragon wreathed in flame", description: "A blazing dragon wreathed in flame.", art: "src/card-art/ember-dragon.webp" },
+    { packId: "dragons", name: "Frost Dragon", slug: "frost-dragon", type: "Dragon", tagline: "A frosty dragon with freezing breath", description: "A frosty dragon with freezing breath.", art: "src/card-art/frost-dragon.webp" },
+    { packId: "dragons", name: "Storm Dragon", slug: "storm-dragon", type: "Dragon", tagline: "A storm dragon crackling with lightning", description: "A storm dragon crackling with lightning.", art: "src/card-art/storm-dragon.webp" },
+    { packId: "dragons", name: "Forest Dragon", slug: "forest-dragon", type: "Dragon", tagline: "A green dragon hidden among roots and leaves", description: "A green dragon hidden among roots and leaves.", art: "src/card-art/forest-dragon.webp" },
+    { packId: "dragons", name: "Crystal Dragon", slug: "crystal-dragon", type: "Dragon", tagline: "A dragon shining with shards of crystal light", description: "A dragon shining with shards of crystal light.", art: "src/card-art/crystal-dragon.webp" },
+    { packId: "dragons", name: "Sea Dragon", slug: "sea-dragon", type: "Dragon", tagline: "A sea dragon rising from foaming waves", description: "A sea dragon rising from foaming waves.", art: "src/card-art/sea-dragon.webp" },
+    { packId: "dragons", name: "Shadow Dragon", slug: "shadow-dragon", type: "Dragon", tagline: "A dark dragon prowling through midnight mist", description: "A dark dragon prowling through midnight mist.", art: "src/card-art/shadow-dragon.webp" },
+    { packId: "dragons", name: "Golden Dragon", slug: "golden-dragon", type: "Dragon", tagline: "A noble golden dragon glowing like the dawn", description: "A noble golden dragon glowing like the dawn.", art: "src/card-art/golden-dragon.webp" },
+    { packId: "dragons", name: "Volcano Dragon", slug: "volcano-dragon", type: "Dragon", tagline: "A molten dragon roaring from a volcano", description: "A molten dragon roaring from a volcano.", art: "src/card-art/volcano-dragon.webp" },
+    { packId: "dragons", name: "Cloud Dragon", slug: "cloud-dragon", type: "Dragon", tagline: "A pale dragon drifting through bright clouds", description: "A pale dragon drifting through bright clouds.", art: "src/card-art/cloud-dragon.webp" },
+    { packId: "dragons", name: "Thunderwyrm", slug: "thunderwyrm", type: "Dragon", tagline: "A mighty wyrm booming across the sky", description: "A mighty wyrm booming across the sky.", art: "src/card-art/thunderwyrm.webp" },
+    { packId: "dragons", name: "Star Dragon", slug: "star-dragon", type: "Dragon", tagline: "A cosmic dragon sparkling with starlight", description: "A cosmic dragon sparkling with starlight.", art: "src/card-art/star-dragon.webp" },
+    { packId: "desserts", name: "Chocolate Cake", slug: "chocolate-cake", type: "Dessert", tagline: "A rich cake stacked with chocolate frosting", description: "A rich cake stacked with chocolate frosting.", art: "src/card-art/chocolate-cake.webp" },
+    { packId: "desserts", name: "Strawberry Sundae", slug: "strawberry-sundae", type: "Dessert", tagline: "A towering sundae with syrup and strawberries", description: "A towering sundae with syrup and strawberries.", art: "src/card-art/strawberry-sundae.webp" },
+    { packId: "desserts", name: "Lemon Tart", slug: "lemon-tart", type: "Dessert", tagline: "A bright lemon tart with a glossy golden top", description: "A bright lemon tart with a glossy golden top.", art: "src/card-art/lemon-tart.webp" },
+    { packId: "desserts", name: "Cupcake Sprinkle", slug: "cupcake-sprinkle", type: "Dessert", tagline: "A cute cupcake with a swirl of frosting", description: "A cute cupcake with a swirl of frosting.", art: "src/card-art/cupcake-sprinkle.webp" },
+    { packId: "desserts", name: "Apple Crumble", slug: "apple-crumble", type: "Dessert", tagline: "A warm crumble topped with ice cream", description: "A warm crumble topped with ice cream.", art: "src/card-art/apple-crumble.webp" },
+    { packId: "desserts", name: "Jelly Tower", slug: "jelly-tower", type: "Dessert", tagline: "A wobbly rainbow tower of jelly", description: "A wobbly rainbow tower of jelly.", art: "src/card-art/jelly-tower.webp" },
+    { packId: "desserts", name: "Doughnut Ring", slug: "doughnut-ring", type: "Dessert", tagline: "A glossy doughnut covered in sweet icing", description: "A glossy doughnut covered in sweet icing.", art: "src/card-art/doughnut-ring.webp" },
+    { packId: "desserts", name: "Brownie Bite", slug: "brownie-bite", type: "Dessert", tagline: "A gooey brownie packed with chocolate chunks", description: "A gooey brownie packed with chocolate chunks.", art: "src/card-art/brownie-bite.webp" },
+    { packId: "desserts", name: "Raspberry Cheesecake", slug: "raspberry-cheesecake", type: "Dessert", tagline: "A creamy cheesecake with raspberry sauce", description: "A creamy cheesecake with raspberry sauce.", art: "src/card-art/raspberry-cheesecake.webp" },
+    { packId: "desserts", name: "Ice Cream Cone", slug: "ice-cream-cone", type: "Dessert", tagline: "A colourful cone stacked with scoops", description: "A colourful cone stacked with scoops.", art: "src/card-art/ice-cream-cone.webp" },
+    { packId: "desserts", name: "Macaron Magic", slug: "macaron-magic", type: "Dessert", tagline: "Colourful macarons lined up like jewels", description: "Colourful macarons lined up like jewels.", art: "src/card-art/macaron-magic.webp" },
+    { packId: "desserts", name: "Sticky Toffee Pudding", slug: "sticky-toffee-pudding", type: "Dessert", tagline: "A sticky pudding dripping with toffee sauce", description: "A sticky pudding dripping with toffee sauce.", art: "src/card-art/sticky-toffee-pudding.webp" }
   ]);
 
   const ACTIVE_CARD_PACKS = Object.freeze([
@@ -1288,6 +1368,7 @@
   let currentBattle = null;
   let currentBattlePointSpent = false;
   let battlePollTimer = null;
+  let waitingForWrongAnswerDismiss = false;
   let battleLobbyTimer = null;
 
   initialise();
@@ -1299,6 +1380,7 @@
     elements.hintButton.addEventListener("click", showHint);
     elements.revealWordButton.addEventListener("click", revealCurrentWord);
     elements.skipButton.addEventListener("click", skipCurrentWord);
+    document.addEventListener("click", handleWrongAnswerDismissClick, true);
     if (elements.resetButton) {
       elements.resetButton.addEventListener("click", resetProgress);
     }
@@ -1323,12 +1405,6 @@
     if (elements.battleArenaJump) {
       elements.battleArenaJump.addEventListener("click", () => elements.battlePanel.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
-    window.addEventListener("pagehide", handlePageLifecycleSave);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") {
-        handlePageLifecycleSave();
-      }
-    });
 
     renderLevelSelector();
     setupVoicePicker();
@@ -1483,7 +1559,7 @@
     levelPanelCollapsed = true;
     currentWord = null;
     clearAutoAdvance();
-    saveState({ immediateRemote: Boolean(currentUser) });
+    saveState();
     if (currentUser) {
       ensureProfile();
     }
@@ -1510,7 +1586,6 @@
     const safeLevel = Number.isInteger(Number(selectedLevel)) ? clamp(Number(selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
     const initialState = {
       version: 11,
-      lastUpdatedAt: Date.now(),
       selectedLevel: safeLevel,
       unlockedLevels: safeLevel ? [safeLevel] : [],
       points: 0,
@@ -1551,7 +1626,6 @@
       const selectedLevel = Number.isInteger(Number(parsed.selectedLevel)) ? clamp(Number(parsed.selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
       const loaded = {
         version: 11,
-        lastUpdatedAt: Number.isFinite(parsed.lastUpdatedAt) ? parsed.lastUpdatedAt : 0,
         selectedLevel,
         unlockedLevels: Array.isArray(parsed.unlockedLevels) ? parsed.unlockedLevels : (selectedLevel ? [selectedLevel] : []),
         points: Number.isFinite(parsed.points) ? Math.max(0, parsed.points) : 0,
@@ -1626,27 +1700,8 @@
     }
   }
 
-  function writeLocalState(targetState = state) {
-    window.localStorage.setItem(getStorageKey(), JSON.stringify(targetState));
-  }
-
-  function saveState(options = {}) {
-    const { skipRemote = false, immediateRemote = false, preserveTimestamp = false } = options;
-    if (!preserveTimestamp) {
-      state.lastUpdatedAt = Date.now();
-    }
-
-    writeLocalState(state);
-
-    if (skipRemote) {
-      return;
-    }
-
-    if (immediateRemote) {
-      saveRemoteProgress();
-      return;
-    }
-
+  function saveState() {
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
     queueRemoteProgressSave();
   }
 
@@ -1671,6 +1726,7 @@
   }
 
   function selectNextWord() {
+    waitingForWrongAnswerDismiss = false;
     clearAutoAdvance();
     if (!state.selectedLevel) {
       renderLevelSelector();
@@ -1793,6 +1849,16 @@
     state.queue.splice(insertionIndex, 0, word);
   }
 
+  function handleWrongAnswerDismissClick() {
+    if (!waitingForWrongAnswerDismiss) {
+      return;
+    }
+
+    waitingForWrongAnswerDismiss = false;
+    clearAutoAdvance();
+    selectNextWord();
+  }
+
   function handleAnswerKeydown(event) {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) {
       return;
@@ -1826,14 +1892,17 @@
     }
 
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
-    saveState({ immediateRemote: wasCorrect });
+    saveState();
     renderStats();
     renderShop();
     renderCollection();
     renderPacks();
     renderBattlePanel();
     lockPracticeControls();
-    autoAdvanceTimer = window.setTimeout(selectNextWord, wasCorrect ? AUTO_ADVANCE_MS : WRONG_AUTO_ADVANCE_MS);
+    autoAdvanceTimer = window.setTimeout(() => {
+      waitingForWrongAnswerDismiss = false;
+      selectNextWord();
+    }, wasCorrect ? AUTO_ADVANCE_MS : WRONG_AUTO_ADVANCE_MS);
   }
 
   function handleCorrectAnswer(progress) {
@@ -1876,6 +1945,7 @@
   function handleIncorrectAnswer(progress, answer) {
     progress.correctStreak = 0;
     progress.lastAttemptWasWrong = true;
+    waitingForWrongAnswerDismiss = true;
     insertWordAfterGap(progress.word, WRONG_REVIEW_GAP);
     setFeedback(`Not quite. ${answer ? `You typed “${answer}”. ` : ""}The word was “${progress.word}”. It will come back soon.`, "error");
   }
@@ -1954,7 +2024,7 @@
       elements.nextShopText.textContent = `${spareUnlocks} pack unlock ready`;
       elements.shopProgress.style.width = `${(unlockedCount / ACTIVE_CARD_PACKS.length) * 100}%`;
     } else {
-      elements.nextShopText.textContent = `${currentPackProgress.owned} / ${currentPackProgress.target} in ${currentPackProgress.pack.shortName}`;
+      elements.nextShopText.textContent = `${currentPackProgress.owned} / ${currentPackProgress.target} cards bought`;
       elements.shopProgress.style.width = `${currentPackProgress.target === 0 ? 100 : (currentPackProgress.owned / currentPackProgress.target) * 100}%`;
     }
 
@@ -2206,13 +2276,13 @@ function handleShopClick(event) {
     const localCard = { index: cardIndex, purchasedAt: Date.now(), source: "shop", attackStrength: null };
     state.ownedCards.push(localCard);
     lastPurchasedIndex = cardIndex;
-    saveState({ immediateRemote: true });
+    saveState();
 
     const insertedCard = await upsertUserCard(cardIndex, "shop");
     if (insertedCard && insertedCard.id) {
       localCard.id = insertedCard.id;
       localCard.purchasedAt = new Date(insertedCard.purchased_at).getTime() || localCard.purchasedAt;
-      saveState({ immediateRemote: true });
+      saveState();
     }
 
     renderStats();
@@ -2297,25 +2367,32 @@ function handleShopClick(event) {
   }
 
   function getCurrentPackProgress() {
-    const unlocked = state.unlockedPackIds || [INITIAL_UNLOCKED_PACK_ID];
-    const candidateId = unlocked.find((packId) => getOwnedCountForPack(state, packId) < getPackUnlockThreshold(packId)) || unlocked[0] || INITIAL_UNLOCKED_PACK_ID;
-    const currentPack = getPackById(candidateId) || ACTIVE_CARD_PACKS[0];
-    const owned = getOwnedCountForPack(state, currentPack.id);
-    const target = getPackUnlockThreshold(currentPack.id);
-    return { pack: currentPack, owned: clamp(owned, 0, target), target, total: getCardsInPack(currentPack.id).length };
+    const owned = getPackUnlockCardCount(state);
+    const unlockedSlots = getPackUnlockSlots(state);
+    const target = Math.max(CARDS_PER_PACK_UNLOCK, (unlockedSlots - FREE_EXTRA_PACK_UNLOCKS) * CARDS_PER_PACK_UNLOCK);
+
+    return {
+      pack: getLastUnlockedPack(),
+      owned: clamp(owned, 0, target),
+      target,
+      total: target
+    };
+  }
+
+  function getPackUnlockCardCount(targetState) {
+    const validIndexes = new Set(
+      (targetState.ownedCards || [])
+        .map((card) => Number(card.index))
+        .filter((index) => Number.isInteger(index) && index >= 0 && index < ACTIVE_CREATURE_CARD_TEMPLATES.length)
+    );
+
+    return validIndexes.size;
   }
 
   function getPackUnlockSlots(targetState) {
-    const unlocked = Array.isArray(targetState.unlockedPackIds) && targetState.unlockedPackIds.length
-      ? targetState.unlockedPackIds
-      : [INITIAL_UNLOCKED_PACK_ID];
-    let slots = 1;
-    unlocked.forEach((packId) => {
-      if (getOwnedCountForPack(targetState, packId) >= getPackUnlockThreshold(packId)) {
-        slots += 1;
-      }
-    });
-    return Math.min(slots, ACTIVE_CARD_PACKS.length);
+    const boughtCardCount = getPackUnlockCardCount(targetState);
+    const earnedUnlocks = Math.floor(boughtCardCount / CARDS_PER_PACK_UNLOCK);
+    return Math.min(1 + FREE_EXTRA_PACK_UNLOCKS + earnedUnlocks, ACTIVE_CARD_PACKS.length);
   }
 
   function ensurePackUnlockState(targetState) {
@@ -2341,7 +2418,7 @@ function handleShopClick(event) {
     if (!packId || isPackUnlocked(packId)) return;
     const spareUnlocks = getPackUnlockSlots(state) - (state.unlockedPackIds || []).length;
     if (spareUnlocks <= 0) {
-      setShopFlash("Own at least half the cards in an unlocked pack to unlock another pack.", "info");
+      setShopFlash(`Buy ${CARDS_PER_PACK_UNLOCK} cards for each new pack unlock. New users get one extra pack unlock free.`, "info");
       return;
     }
     state.unlockedPackIds.push(packId);
@@ -2638,28 +2715,11 @@ function scoreWord(word) {
     if (!supabaseClient || !currentUser) return;
 
     window.clearTimeout(remoteSaveTimer);
-    remoteSaveTimer = window.setTimeout(saveRemoteProgress, 200);
-  }
-
-  function handlePageLifecycleSave() {
-    if (!state) return;
-
-    state.lastUpdatedAt = Date.now();
-    writeLocalState(state);
-
-    if (supabaseClient && currentUser) {
-      window.clearTimeout(remoteSaveTimer);
-      saveRemoteProgress();
-    }
+    remoteSaveTimer = window.setTimeout(saveRemoteProgress, 700);
   }
 
   async function saveRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
-
-    window.clearTimeout(remoteSaveTimer);
-    remoteSaveTimer = null;
-    state.lastUpdatedAt = state.lastUpdatedAt || Date.now();
-    writeLocalState(state);
 
     const { error } = await supabaseClient
       .from("user_progress")
@@ -2678,10 +2738,9 @@ function scoreWord(word) {
   async function loadRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
 
-    const localBeforeRemote = restoreStateShape(state);
     const { data, error } = await supabaseClient
       .from("user_progress")
-      .select("state,updated_at")
+      .select("state")
       .eq("user_id", currentUser.id)
       .eq("mode", "graded")
       .maybeSingle();
@@ -2692,15 +2751,11 @@ function scoreWord(word) {
     }
 
     if (data && data.state) {
-      const remoteState = restoreStateShape(data.state);
-      state = mergeGameStates(localBeforeRemote, remoteState);
-      saveState({ immediateRemote: true, preserveTimestamp: true });
+      state = restoreStateShape(data.state);
+      saveState();
     } else {
-      state = localBeforeRemote;
-      saveState({ immediateRemote: true, preserveTimestamp: true });
+      await saveRemoteProgress();
     }
-
-    await syncUnsyncedOwnedCardsToSupabase();
   }
 
   function restoreStateShape(savedState) {
@@ -2708,7 +2763,6 @@ function scoreWord(word) {
     const restored = {
       ...makeInitialState(selectedLevel),
       ...savedState,
-      lastUpdatedAt: Number.isFinite(savedState.lastUpdatedAt) ? savedState.lastUpdatedAt : 0,
       selectedLevel,
       progress: savedState.progress && typeof savedState.progress === "object" ? savedState.progress : {},
       ownedCards: sanitiseOwnedCards(savedState.ownedCards || []),
@@ -2737,129 +2791,17 @@ function scoreWord(word) {
     return restored;
   }
 
-  function mergeGameStates(localState, remoteState) {
-    const localScore = getStateProgressScore(localState);
-    const remoteScore = getStateProgressScore(remoteState);
-    const baseState = localScore >= remoteScore ? localState : remoteState;
-    const otherState = localScore >= remoteScore ? remoteState : localState;
-    const merged = restoreStateShape(baseState);
-
-    merged.lastUpdatedAt = Math.max(Number(localState.lastUpdatedAt || 0), Number(remoteState.lastUpdatedAt || 0), Date.now());
-    merged.selectedLevel = merged.selectedLevel || otherState.selectedLevel || null;
-    merged.unlockedLevels = mergeNumberLists(localState.unlockedLevels, remoteState.unlockedLevels).filter((level) => level >= MIN_LEVEL && level <= MAX_LEVEL);
-    if (merged.selectedLevel && merged.unlockedLevels.length === 0) {
-      merged.unlockedLevels = [merged.selectedLevel];
-    }
-
-    merged.unlockedPackIds = mergePackIds(localState.unlockedPackIds, remoteState.unlockedPackIds);
-    merged.points = Math.max(Number(localState.points || 0), Number(remoteState.points || 0));
-    merged.lifetimePoints = Math.max(Number(localState.lifetimePoints || 0), Number(remoteState.lifetimePoints || 0), calculateEarnedPoints(merged));
-    merged.battlePoints = Math.max(Number(localState.battlePoints || 0), Number(remoteState.battlePoints || 0));
-    merged.correctSpellingsTowardBattlePoint = Math.max(Number(localState.correctSpellingsTowardBattlePoint || 0), Number(remoteState.correctSpellingsTowardBattlePoint || 0));
-    merged.ownedCards = mergeOwnedCards(localState.ownedCards || [], remoteState.ownedCards || []);
-    merged.progress = mergeProgressMaps(localState.progress || {}, remoteState.progress || {});
-
-    ensureProgressForActiveWords(merged);
-    ensurePackUnlockState(merged);
-    cleanQueue(merged);
-    fillQueueToSize(merged, ACTIVE_WORD_TARGET);
-    return merged;
-  }
-
-  function getStateProgressScore(targetState) {
-    const progressValues = Object.values(targetState.progress || {});
-    const mastered = progressValues.filter((progress) => progress && progress.mastered).length;
-    const correctAttempts = progressValues.reduce((sum, progress) => sum + Number(progress && progress.correctAttempts || 0), 0);
-    return Number(targetState.lifetimePoints || 0) +
-      Number(targetState.points || 0) +
-      Number(targetState.battlePoints || 0) * 25 +
-      (targetState.ownedCards || []).length * 35 +
-      mastered * 12 +
-      correctAttempts * 3 +
-      (targetState.unlockedPackIds || []).length * 15 +
-      (targetState.unlockedLevels || []).length * 10;
-  }
-
-  function mergeProgressMaps(localProgress, remoteProgress) {
-    const merged = {};
-    const allWords = new Set([...Object.keys(localProgress || {}), ...Object.keys(remoteProgress || {})]);
-    allWords.forEach((word) => {
-      const localWord = localProgress[word] || {};
-      const remoteWord = remoteProgress[word] || {};
-      const localScore = getWordProgressScore(localWord);
-      const remoteScore = getWordProgressScore(remoteWord);
-      const base = localScore >= remoteScore ? localWord : remoteWord;
-      const laterAttempt = Number(localWord.lastAttemptAt || 0) >= Number(remoteWord.lastAttemptAt || 0) ? localWord : remoteWord;
-      merged[word] = {
-        ...makeBlankProgress(word),
-        ...base,
-        word,
-        attempts: Math.max(Number(localWord.attempts || 0), Number(remoteWord.attempts || 0)),
-        correctAttempts: Math.max(Number(localWord.correctAttempts || 0), Number(remoteWord.correctAttempts || 0)),
-        correctStreak: Math.max(Number(localWord.correctStreak || 0), Number(remoteWord.correctStreak || 0)),
-        introduced: Boolean(localWord.introduced || remoteWord.introduced),
-        mastered: Boolean(localWord.mastered || remoteWord.mastered),
-        masteredAt: localWord.masteredAt || remoteWord.masteredAt || null,
-        lastAttemptAt: Math.max(Number(localWord.lastAttemptAt || 0), Number(remoteWord.lastAttemptAt || 0)) || null,
-        lastAttemptWasWrong: Boolean(laterAttempt.lastAttemptWasWrong)
-      };
-    });
-    return merged;
-  }
-
-  function getWordProgressScore(progress) {
-    return (progress && progress.mastered ? 100 : 0) +
-      Number(progress && progress.correctAttempts || 0) * 10 +
-      Number(progress && progress.correctStreak || 0) * 3 +
-      Number(progress && progress.attempts || 0);
-  }
-
-  function mergeOwnedCards(localCards, remoteCards) {
-    const merged = [];
-    const seenIds = new Set();
-    const seenLoose = new Set();
-
-    [...sanitiseOwnedCards(remoteCards || []), ...sanitiseOwnedCards(localCards || [])].forEach((card) => {
-      if (card.id) {
-        if (seenIds.has(card.id)) return;
-        seenIds.add(card.id);
-        merged.push(card);
-        return;
-      }
-
-      const looseKey = `${card.index}|${card.purchasedAt}|${card.source || "shop"}`;
-      if (seenLoose.has(looseKey)) return;
-      seenLoose.add(looseKey);
-      merged.push(card);
-    });
-
-    return merged.sort((a, b) => a.purchasedAt - b.purchasedAt);
-  }
-
-  function mergeNumberLists(first = [], second = []) {
-    return Array.from(new Set([...(first || []), ...(second || [])].map(Number).filter(Number.isFinite))).sort((a, b) => a - b);
-  }
-
-  function mergePackIds(first = [], second = []) {
-    const validPackIds = new Set(ACTIVE_CARD_PACKS.map((pack) => pack.id));
-    const merged = Array.from(new Set([...(first || []), ...(second || []), INITIAL_UNLOCKED_PACK_ID]))
-      .filter((packId) => validPackIds.has(packId));
-    return merged.length > 0 ? merged : [INITIAL_UNLOCKED_PACK_ID];
-  }
-
-  async function upsertUserCard(cardIndex, source = "shop", options = {}) {
+  async function upsertUserCard(cardIndex, source = "shop") {
     if (!supabaseClient || !currentUser) return null;
 
-    const purchasedAt = new Date(options.purchasedAt || Date.now()).toISOString();
-    const attackStrength = isValidBattleAttack(options.attackStrength) ? Number(options.attackStrength) : null;
     const { data, error } = await supabaseClient
       .from("user_cards")
       .insert({
         user_id: currentUser.id,
         card_index: cardIndex,
-        purchased_at: purchasedAt,
+        purchased_at: new Date().toISOString(),
         acquired_from: source,
-        attack_strength: attackStrength
+        attack_strength: null
       })
       .select()
       .single();
@@ -2869,7 +2811,7 @@ function scoreWord(word) {
         card_instance_id: data.id,
         user_id: currentUser.id,
         action: source === "battle_win" ? "battle_win" : "shop_purchase",
-        created_at: data.purchased_at || purchasedAt
+        created_at: data.purchased_at || new Date().toISOString()
       });
     }
 
@@ -2890,47 +2832,15 @@ function scoreWord(word) {
       return;
     }
 
-    const serverCards = sanitiseOwnedCards((data || []).map((card) => ({
+    state.ownedCards = sanitiseOwnedCards((data || []).map((card) => ({
       id: card.id,
       index: card.card_index,
       purchasedAt: new Date(card.purchased_at).getTime() || Date.now(),
       source: card.acquired_from || "shop",
       attackStrength: normaliseBattleAttack(card.attack_strength)
     })));
-
-    state.ownedCards = mergeOwnedCards(state.ownedCards || [], serverCards);
     ensurePackUnlockState(state);
-    saveState({ preserveTimestamp: true });
-    await syncUnsyncedOwnedCardsToSupabase();
-  }
-
-  async function syncUnsyncedOwnedCardsToSupabase() {
-    if (!supabaseClient || !currentUser) return;
-
-    let changed = false;
-    for (const card of state.ownedCards) {
-      if (card.id || !Number.isInteger(card.index)) {
-        continue;
-      }
-
-      const insertedCard = await upsertUserCard(card.index, card.source || "shop", {
-        purchasedAt: card.purchasedAt,
-        attackStrength: card.attackStrength
-      });
-
-      if (insertedCard && insertedCard.id) {
-        card.id = insertedCard.id;
-        card.purchasedAt = new Date(insertedCard.purchased_at).getTime() || card.purchasedAt;
-        card.attackStrength = normaliseBattleAttack(insertedCard.attack_strength) || card.attackStrength || null;
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      saveState({ immediateRemote: true });
-      renderCollection();
-      renderBattlePanel();
-    }
+    saveState();
   }
 
   function getBattleHeartbeatCutoffIso() {
@@ -3264,7 +3174,7 @@ function scoreWord(word) {
 
   function spendBattlePoint() {
     state.battlePoints = Math.max(0, Number(state.battlePoints || 0) - 1);
-    saveState({ immediateRemote: true });
+    saveState();
     renderStats();
   }
 
@@ -3287,12 +3197,12 @@ function scoreWord(word) {
         ownedCard.attackStrength = attackStrength;
         const local = state.ownedCards.find((card) => card.id === ownedCard.id);
         if (local) local.attackStrength = attackStrength;
-        saveState({ immediateRemote: true });
+        saveState();
         renderCollection();
       }
     } else {
       ownedCard.attackStrength = attackStrength;
-      saveState({ immediateRemote: true });
+      saveState();
     }
 
     return attackStrength;
