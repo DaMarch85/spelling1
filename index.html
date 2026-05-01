@@ -147,6 +147,70 @@
         </details>
       </section>
 
+
+      <section class="admin-tools-card" id="adminPanel" aria-labelledby="adminTitle" hidden>
+        <details open>
+          <summary>
+            <span id="adminTitle">Admin tools</span>
+            <span class="pill">manual fixes</span>
+          </summary>
+          <p class="small-note" id="adminStatus">Admin tools loading…</p>
+
+          <div class="admin-search-row">
+            <label for="adminSearchInput">Find user</label>
+            <input id="adminSearchInput" type="text" placeholder="username, display name, or email" />
+            <button class="secondary-button" id="adminSearchButton" type="button">Search</button>
+          </div>
+          <div class="admin-search-row">
+            <label for="adminUserSelect">User</label>
+            <select id="adminUserSelect"></select>
+            <button class="primary-button" id="adminLoadButton" type="button">Load user</button>
+          </div>
+
+          <div class="admin-snapshot" id="adminSnapshot"></div>
+
+          <div class="admin-section-grid">
+            <article class="admin-section">
+              <h3>Balance and level</h3>
+              <label>Shop points <input id="adminBalanceShopPoints" type="number" min="0" step="1" /></label>
+              <label>Lifetime points <input id="adminBalanceLifetimePoints" type="number" min="0" step="1" /></label>
+              <label>Battle points <input id="adminBalanceBattlePoints" type="number" min="0" step="1" /></label>
+              <label>Next battle counter <input id="adminBalanceTowardBattle" type="number" min="0" max="9" step="1" /></label>
+              <label>Total correct spellings <input id="adminBalanceTotalCorrect" type="number" min="0" step="1" /></label>
+              <label>Selected level <input id="adminSelectedLevel" type="number" min="1" max="20" step="1" /></label>
+              <button class="primary-button" id="adminSaveBalanceButton" type="button">Save balance/level</button>
+            </article>
+
+            <article class="admin-section">
+              <h3>Unlocked packs</h3>
+              <div class="admin-pack-list" id="adminPackList"></div>
+              <button class="primary-button" id="adminSavePacksButton" type="button">Save packs</button>
+            </article>
+
+            <article class="admin-section">
+              <h3>Cards owned</h3>
+              <div class="admin-card-add-row">
+                <select id="adminCardSelect"></select>
+                <input id="adminCardCount" type="number" min="1" step="1" value="1" />
+                <button class="primary-button" id="adminAddCardButton" type="button">Add card</button>
+              </div>
+              <div class="admin-owned-cards" id="adminOwnedCards"></div>
+            </article>
+
+            <article class="admin-section">
+              <h3>Word mastery</h3>
+              <p class="small-note">Enter words separated by spaces, commas, or new lines.</p>
+              <textarea id="adminWordsInput" rows="6" placeholder="example\nseparate\nnecessary"></textarea>
+              <div class="button-row">
+                <button class="primary-button" id="adminMasterWordsButton" type="button">Mark mastered</button>
+                <button class="secondary-button" id="adminUnmasterWordsButton" type="button">Mark not mastered</button>
+                <button class="secondary-button" id="adminResetWordProgressButton" type="button">Reset all word progress</button>
+              </div>
+            </article>
+          </div>
+        </details>
+      </section>
+
       <section class="leaderboard-card" aria-labelledby="leaderboardTitle">
         <div class="game-card__topline">
           <h2 id="leaderboardTitle">Leaderboards</h2>

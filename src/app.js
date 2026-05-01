@@ -1363,6 +1363,30 @@
     masteredLeaderboard: document.querySelector("#masteredLeaderboard"),
     battleQueueCount: document.querySelector("#battleQueueCount"),
     cancelBattleButton: document.querySelector("#cancelBattleButton"),
+    adminPanel: document.querySelector("#adminPanel"),
+    adminSearchInput: document.querySelector("#adminSearchInput"),
+    adminSearchButton: document.querySelector("#adminSearchButton"),
+    adminUserSelect: document.querySelector("#adminUserSelect"),
+    adminLoadButton: document.querySelector("#adminLoadButton"),
+    adminStatus: document.querySelector("#adminStatus"),
+    adminSnapshot: document.querySelector("#adminSnapshot"),
+    adminBalanceShopPoints: document.querySelector("#adminBalanceShopPoints"),
+    adminBalanceLifetimePoints: document.querySelector("#adminBalanceLifetimePoints"),
+    adminBalanceBattlePoints: document.querySelector("#adminBalanceBattlePoints"),
+    adminBalanceTowardBattle: document.querySelector("#adminBalanceTowardBattle"),
+    adminBalanceTotalCorrect: document.querySelector("#adminBalanceTotalCorrect"),
+    adminSelectedLevel: document.querySelector("#adminSelectedLevel"),
+    adminSaveBalanceButton: document.querySelector("#adminSaveBalanceButton"),
+    adminPackList: document.querySelector("#adminPackList"),
+    adminSavePacksButton: document.querySelector("#adminSavePacksButton"),
+    adminCardSelect: document.querySelector("#adminCardSelect"),
+    adminCardCount: document.querySelector("#adminCardCount"),
+    adminAddCardButton: document.querySelector("#adminAddCardButton"),
+    adminOwnedCards: document.querySelector("#adminOwnedCards"),
+    adminWordsInput: document.querySelector("#adminWordsInput"),
+    adminMasterWordsButton: document.querySelector("#adminMasterWordsButton"),
+    adminUnmasterWordsButton: document.querySelector("#adminUnmasterWordsButton"),
+    adminResetWordProgressButton: document.querySelector("#adminResetWordProgressButton"),
     debugGrid: document.querySelector("#debugGrid"),
     debugRefreshButton: document.querySelector("#debugRefreshButton"),
     saveStatus: document.querySelector("#saveStatus"),
@@ -1384,6 +1408,8 @@
   let battlePollTimer = null;
   let waitingForWrongAnswerDismiss = false;
   let battleLobbyTimer = null;
+  let adminSelectedUserId = null;
+  let adminSnapshotData = null;
 
   initialise();
 
@@ -1422,6 +1448,15 @@
     if (elements.debugRefreshButton) {
       elements.debugRefreshButton.addEventListener("click", () => refreshDebugPanel());
     }
+    if (elements.adminSearchButton) elements.adminSearchButton.addEventListener("click", adminSearchUsers);
+    if (elements.adminLoadButton) elements.adminLoadButton.addEventListener("click", () => adminLoadSelectedUser());
+    if (elements.adminSaveBalanceButton) elements.adminSaveBalanceButton.addEventListener("click", adminSaveBalance);
+    if (elements.adminSavePacksButton) elements.adminSavePacksButton.addEventListener("click", adminSavePacks);
+    if (elements.adminAddCardButton) elements.adminAddCardButton.addEventListener("click", adminAddCard);
+    if (elements.adminOwnedCards) elements.adminOwnedCards.addEventListener("click", adminRemoveCard);
+    if (elements.adminMasterWordsButton) elements.adminMasterWordsButton.addEventListener("click", () => adminSetWordsMastery(true));
+    if (elements.adminUnmasterWordsButton) elements.adminUnmasterWordsButton.addEventListener("click", () => adminSetWordsMastery(false));
+    if (elements.adminResetWordProgressButton) elements.adminResetWordProgressButton.addEventListener("click", adminResetWordProgress);
     window.addEventListener("pagehide", () => {
       saveState();
       saveRemoteProgressNow();
@@ -1479,32 +1514,7 @@
   }
 
   function getLegacyLocalMigrationStates() {
-    if (!currentUser || !currentUser.id || hasLegacyLocalMigrationRun(currentUser.id)) {
-      return [];
-    }
-
-    const currentUserKey = getUserStorageKey(currentUser.id);
-    const keys = Array.from(new Set(SHARED_LOCAL_MIGRATION_KEYS.filter((key) => key !== currentUserKey)));
-    const states = [];
-
-    for (const key of keys) {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) {
-        continue;
-      }
-
-      try {
-        const parsed = JSON.parse(raw);
-        const restored = restoreStateShape(parsed);
-        if (hasMeaningfulSavedProgress(restored)) {
-          states.push({ key, state: restored });
-        }
-      } catch (_error) {
-        // Ignore old or corrupt localStorage entries.
-      }
-    }
-
-    return states;
+    return [];
   }
 
   function hasMeaningfulSavedProgress(candidate) {
@@ -2811,11 +2821,12 @@ function scoreWord(word) {
 
     if (currentUser) {
       await ensureProfile();
-      await loadAndMergeSignedInState();
-      await bootstrapCanonicalStateFromLocal();
+      await loadSignedInCacheState();
+      await ensureCanonicalUserState();
       await refreshCardsFromSupabase();
       await hydrateCanonicalStateFromSupabase();
       await saveRemoteProgressNow();
+      await initialiseAdminPanel();
       renderLevelSelector();
       renderStats();
       renderShop();
@@ -2838,36 +2849,41 @@ function scoreWord(word) {
       renderLeaderboards();
       refreshRecentBattleResults();
       refreshDebugPanel();
+      hideAdminPanel();
       renderSaveStatus();
       renderLevelSelector();
       selectNextWord();
     }
   }
 
-  async function loadAndMergeSignedInState() {
-    let localState = loadStateFromKey(getStorageKey());
-    const migrationStates = getLegacyLocalMigrationStates();
-
-    for (const migrationState of migrationStates) {
-      localState = mergeProgressStates(localState, migrationState.state);
-    }
-
+  async function loadSignedInCacheState() {
     const remoteState = await fetchRemoteProgressState();
-    state = mergeProgressStates(localState, remoteState || makeInitialState(localState.selectedLevel || null));
-
+    const startingLevel = await fetchProfileStartingLevel();
+    state = remoteState ? restoreStateShape(remoteState) : makeInitialState(startingLevel);
+    if (!state.selectedLevel && startingLevel) {
+      state.selectedLevel = startingLevel;
+      state.unlockedLevels = [startingLevel];
+    }
     ensureProgressForActiveWords(state);
     cleanQueue(state);
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     state.lastUpdatedAt = Date.now();
     window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+  }
 
-    if (migrationStates.length > 0) {
-      markLegacyLocalMigrationRun(currentUser.id, {
-        sourceKeys: migrationStates.map((entry) => entry.key)
-      });
+  async function fetchProfileStartingLevel() {
+    if (!supabaseClient || !currentUser) return null;
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .select("starting_level")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (error || !data || !Number.isInteger(Number(data.starting_level))) {
+      return null;
     }
 
-    await syncUnsavedLocalCardsToSupabase();
+    return clamp(Number(data.starting_level), MIN_LEVEL, MAX_LEVEL);
   }
 
   async function fetchRemoteProgressState() {
@@ -2888,16 +2904,17 @@ function scoreWord(word) {
     return data && data.state ? restoreStateShape(data.state) : null;
   }
 
-  async function bootstrapCanonicalStateFromLocal() {
+  async function ensureCanonicalUserState() {
     if (!supabaseClient || !currentUser) return;
 
-    const { error } = await supabaseClient.rpc("bootstrap_user_canonical_state", {
-      p_state: state
-    });
-
+    const { error } = await supabaseClient.rpc("ensure_user_game_state");
     if (error) {
       elements.authStatus.textContent = `Could not prepare online save tables: ${error.message}`;
     }
+  }
+
+  async function bootstrapCanonicalStateFromLocal() {
+    // Disabled: signing in must never copy browser-local progress into Supabase.
   }
 
   async function hydrateCanonicalStateFromSupabase() {
@@ -3319,50 +3336,7 @@ function scoreWord(word) {
   }
 
   async function syncUnsavedLocalCardsToSupabase() {
-    if (!supabaseClient || !currentUser) {
-      return;
-    }
-
-    const existingShopCardIndexes = new Set(
-      (state.ownedCards || [])
-        .filter((card) => card && card.id)
-        .map((card) => Number(card.index))
-        .filter((index) => Number.isInteger(index))
-    );
-
-    const localOnlyCards = (state.ownedCards || [])
-      .filter((card) =>
-        card &&
-        !card.id &&
-        (!card.source || card.source === "shop") &&
-        Number.isInteger(Number(card.index)) &&
-        Number(card.index) >= 0 &&
-        Number(card.index) < ACTIVE_CREATURE_CARD_TEMPLATES.length
-      )
-      .filter((card) => {
-        const index = Number(card.index);
-        if (existingShopCardIndexes.has(index)) {
-          return false;
-        }
-        existingShopCardIndexes.add(index);
-        return true;
-      });
-
-    for (const card of localOnlyCards) {
-      const insertedCard = await upsertUserCard(Number(card.index), card.source || "shop");
-      if (insertedCard && insertedCard.id) {
-        card.id = insertedCard.id;
-        card.purchasedAt = new Date(insertedCard.purchased_at).getTime() || Number(card.purchasedAt) || Date.now();
-        card.source = insertedCard.acquired_from || card.source || "shop";
-        card.attackStrength = normaliseBattleAttack(insertedCard.attack_strength);
-      }
-    }
-
-    if (localOnlyCards.length > 0) {
-      state.lastUpdatedAt = Date.now();
-      window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
-      await saveRemoteProgressNow();
-    }
+    // Disabled: signed-in users now load card ownership from Supabase only.
   }
 
   async function refreshCardsFromSupabase() {
@@ -4111,6 +4085,295 @@ function scoreWord(word) {
         </div>
       `)
       .join("");
+  }
+
+  async function initialiseAdminPanel() {
+    if (!elements.adminPanel || !supabaseClient || !currentUser) {
+      return;
+    }
+
+    const { data, error } = await supabaseClient.rpc("admin_search_users", { p_query: "" });
+    if (error) {
+      hideAdminPanel();
+      return;
+    }
+
+    elements.adminPanel.hidden = false;
+    elements.adminStatus.textContent = "Admin tools ready.";
+    populateAdminCardSelect();
+    renderAdminPackList([]);
+    renderAdminUserOptions(Array.isArray(data) ? data : []);
+  }
+
+  function hideAdminPanel() {
+    if (elements.adminPanel) {
+      elements.adminPanel.hidden = true;
+    }
+    adminSelectedUserId = null;
+    adminSnapshotData = null;
+  }
+
+  async function adminSearchUsers() {
+    if (!supabaseClient || !elements.adminSearchInput) return;
+    elements.adminStatus.textContent = "Searching users…";
+    const { data, error } = await supabaseClient.rpc("admin_search_users", {
+      p_query: elements.adminSearchInput.value.trim()
+    });
+
+    if (error) {
+      elements.adminStatus.textContent = `Admin search error: ${error.message}`;
+      return;
+    }
+
+    renderAdminUserOptions(Array.isArray(data) ? data : []);
+    elements.adminStatus.textContent = `${(data || []).length} user${(data || []).length === 1 ? "" : "s"} found.`;
+  }
+
+  function renderAdminUserOptions(users) {
+    if (!elements.adminUserSelect) return;
+    elements.adminUserSelect.innerHTML = "";
+    for (const user of users) {
+      const option = document.createElement("option");
+      option.value = user.user_id;
+      const username = user.username || user.display_name || user.email || "Player";
+      option.textContent = `${username} · ${user.shop_points || 0} pts · ${user.cards_owned || 0} cards · ${user.mastered_words || 0} mastered`;
+      elements.adminUserSelect.appendChild(option);
+    }
+  }
+
+  async function adminLoadSelectedUser() {
+    const userId = elements.adminUserSelect && elements.adminUserSelect.value;
+    if (!userId) {
+      elements.adminStatus.textContent = "Select a user first.";
+      return;
+    }
+
+    await adminLoadUser(userId);
+  }
+
+  async function adminLoadUser(userId) {
+    elements.adminStatus.textContent = "Loading user…";
+    const { data, error } = await supabaseClient.rpc("admin_get_user_snapshot", {
+      p_user_id: userId
+    });
+
+    if (error || !data) {
+      elements.adminStatus.textContent = `Could not load user: ${error ? error.message : "No data returned"}`;
+      return;
+    }
+
+    adminSelectedUserId = userId;
+    adminSnapshotData = data;
+    renderAdminSnapshot(data);
+    elements.adminStatus.textContent = "User loaded.";
+  }
+
+  function renderAdminSnapshot(snapshot) {
+    const profile = snapshot.profile || {};
+    const balance = snapshot.balance || {};
+    const summary = snapshot.summary || {};
+    const packs = Array.isArray(snapshot.pack_unlocks) ? snapshot.pack_unlocks.map((pack) => pack.pack_id) : [];
+    const cards = Array.isArray(snapshot.cards) ? snapshot.cards : [];
+
+    elements.adminSnapshot.innerHTML = `
+      <div><span>User</span><strong>${escapeHtml(profile.username || profile.display_name || profile.email || "Player")}</strong></div>
+      <div><span>User ID</span><strong>${escapeHtml(profile.user_id || adminSelectedUserId || "")}</strong></div>
+      <div><span>Cards</span><strong>${cards.length}</strong></div>
+      <div><span>Mastered words</span><strong>${summary.mastered_words || 0}</strong></div>
+      <div><span>Word rows</span><strong>${summary.word_rows || 0}</strong></div>
+      <div><span>Unlocked packs</span><strong>${packs.length}</strong></div>
+    `;
+
+    elements.adminBalanceShopPoints.value = Number(balance.shop_points || 0);
+    elements.adminBalanceLifetimePoints.value = Number(balance.lifetime_points || 0);
+    elements.adminBalanceBattlePoints.value = Number(balance.battle_points || 0);
+    elements.adminBalanceTowardBattle.value = Number(balance.correct_spellings_toward_battle_point || 0);
+    elements.adminBalanceTotalCorrect.value = Number(balance.total_correct_spellings || 0);
+    elements.adminSelectedLevel.value = Number(profile.starting_level || snapshot.selected_level || 0) || "";
+
+    renderAdminPackList(packs);
+    populateAdminCardSelect();
+    renderAdminOwnedCards(cards);
+  }
+
+  function populateAdminCardSelect() {
+    if (!elements.adminCardSelect) return;
+    elements.adminCardSelect.innerHTML = "";
+    ACTIVE_CREATURE_CARD_TEMPLATES.forEach((card, index) => {
+      if (!card) return;
+      const option = document.createElement("option");
+      option.value = String(index);
+      const pack = getPackById(card.packId);
+      option.textContent = `${index}: ${card.name} (${pack ? pack.shortName : card.packId})`;
+      elements.adminCardSelect.appendChild(option);
+    });
+  }
+
+  function renderAdminPackList(unlockedPackIds) {
+    if (!elements.adminPackList) return;
+    const unlocked = new Set(unlockedPackIds || []);
+    elements.adminPackList.innerHTML = ACTIVE_CARD_PACKS.map((pack) => `
+      <label class="admin-check-row">
+        <input type="checkbox" value="${escapeHtml(pack.id)}" ${unlocked.has(pack.id) ? "checked" : ""} />
+        <span>${escapeHtml(pack.name)}</span>
+      </label>
+    `).join("");
+  }
+
+  function renderAdminOwnedCards(cards) {
+    if (!elements.adminOwnedCards) return;
+    if (!cards.length) {
+      elements.adminOwnedCards.innerHTML = "<p class='small-note'>No cards owned.</p>";
+      return;
+    }
+
+    elements.adminOwnedCards.innerHTML = cards.map((card) => `
+      <div class="admin-owned-card">
+        <span>${escapeHtml(card.name || `Card ${card.card_index}`)} <small>#${card.card_index} · ${escapeHtml(card.acquired_from || "shop")}</small></span>
+        <button class="secondary-button" type="button" data-admin-remove-card="${escapeHtml(card.id)}">Remove</button>
+      </div>
+    `).join("");
+  }
+
+  async function adminSaveBalance() {
+    if (!adminSelectedUserId) return;
+    const payload = {
+      p_user_id: adminSelectedUserId,
+      p_shop_points: numberFromInput(elements.adminBalanceShopPoints),
+      p_lifetime_points: numberFromInput(elements.adminBalanceLifetimePoints),
+      p_battle_points: numberFromInput(elements.adminBalanceBattlePoints),
+      p_correct_spellings_toward_battle_point: numberFromInput(elements.adminBalanceTowardBattle),
+      p_total_correct_spellings: numberFromInput(elements.adminBalanceTotalCorrect)
+    };
+
+    const { error } = await supabaseClient.rpc("admin_update_balance", payload);
+    if (error) {
+      elements.adminStatus.textContent = `Could not save balance: ${error.message}`;
+      return;
+    }
+
+    await adminSetSelectedLevel(false);
+    await adminLoadUser(adminSelectedUserId);
+    elements.adminStatus.textContent = "Balance saved.";
+  }
+
+  async function adminSetSelectedLevel(showMessage = true) {
+    if (!adminSelectedUserId || !elements.adminSelectedLevel.value) return;
+    const level = numberFromInput(elements.adminSelectedLevel);
+    if (level < MIN_LEVEL || level > MAX_LEVEL) return;
+
+    const { error } = await supabaseClient.rpc("admin_set_selected_level", {
+      p_user_id: adminSelectedUserId,
+      p_level: level
+    });
+
+    if (error && showMessage) {
+      elements.adminStatus.textContent = `Could not update level: ${error.message}`;
+    }
+  }
+
+  async function adminSavePacks() {
+    if (!adminSelectedUserId) return;
+    const packIds = Array.from(elements.adminPackList.querySelectorAll("input:checked")).map((input) => input.value);
+    const { error } = await supabaseClient.rpc("admin_set_pack_unlocks", {
+      p_user_id: adminSelectedUserId,
+      p_pack_ids: packIds
+    });
+
+    if (error) {
+      elements.adminStatus.textContent = `Could not save packs: ${error.message}`;
+      return;
+    }
+
+    await adminLoadUser(adminSelectedUserId);
+    elements.adminStatus.textContent = "Pack unlocks saved.";
+  }
+
+  async function adminAddCard() {
+    if (!adminSelectedUserId) return;
+    const { error } = await supabaseClient.rpc("admin_add_card", {
+      p_user_id: adminSelectedUserId,
+      p_card_index: Number(elements.adminCardSelect.value),
+      p_count: Math.max(1, numberFromInput(elements.adminCardCount) || 1)
+    });
+
+    if (error) {
+      elements.adminStatus.textContent = `Could not add card: ${error.message}`;
+      return;
+    }
+
+    await adminLoadUser(adminSelectedUserId);
+    elements.adminStatus.textContent = "Card added.";
+  }
+
+  async function adminRemoveCard(event) {
+    const button = event.target.closest("button[data-admin-remove-card]");
+    if (!button || !adminSelectedUserId) return;
+    if (!window.confirm("Remove this card instance from the user?")) return;
+
+    const { error } = await supabaseClient.rpc("admin_remove_card", {
+      p_card_id: button.dataset.adminRemoveCard
+    });
+
+    if (error) {
+      elements.adminStatus.textContent = `Could not remove card: ${error.message}`;
+      return;
+    }
+
+    await adminLoadUser(adminSelectedUserId);
+    elements.adminStatus.textContent = "Card removed.";
+  }
+
+  async function adminSetWordsMastery(mastered) {
+    if (!adminSelectedUserId) return;
+    const words = parseAdminWords();
+    if (words.length === 0) {
+      elements.adminStatus.textContent = "Enter one or more words first.";
+      return;
+    }
+
+    const { error } = await supabaseClient.rpc("admin_set_word_mastery", {
+      p_user_id: adminSelectedUserId,
+      p_words: words,
+      p_mastered: mastered,
+      p_level: Number(elements.adminSelectedLevel.value) || null
+    });
+
+    if (error) {
+      elements.adminStatus.textContent = `Could not update words: ${error.message}`;
+      return;
+    }
+
+    await adminLoadUser(adminSelectedUserId);
+    elements.adminStatus.textContent = mastered ? "Words marked mastered." : "Words marked not mastered.";
+  }
+
+  async function adminResetWordProgress() {
+    if (!adminSelectedUserId) return;
+    if (!window.confirm("Clear ALL word progress for this user? Cards, points, and packs will remain.")) return;
+
+    const { error } = await supabaseClient.rpc("admin_reset_word_progress", {
+      p_user_id: adminSelectedUserId
+    });
+
+    if (error) {
+      elements.adminStatus.textContent = `Could not reset word progress: ${error.message}`;
+      return;
+    }
+
+    await adminLoadUser(adminSelectedUserId);
+    elements.adminStatus.textContent = "Word progress reset.";
+  }
+
+  function parseAdminWords() {
+    return String(elements.adminWordsInput.value || "")
+      .split(/[\s,]+/)
+      .map((word) => word.trim().toLowerCase().replace(/[^a-z]/g, ""))
+      .filter(Boolean);
+  }
+
+  function numberFromInput(input) {
+    return Math.max(0, Number(input && input.value ? input.value : 0) || 0);
   }
 
   async function renderLeaderboards() {

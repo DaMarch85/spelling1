@@ -1430,3 +1430,147 @@ body.is-battle-waiting .battle-card::before {
   gap: 0.55rem;
   color: var(--muted);
 }
+
+/* Admin tools */
+.admin-tools-card {
+  grid-column: 1 / -1;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  padding: 1.25rem;
+}
+
+.admin-tools-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.admin-tools-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-search-row,
+.admin-card-add-row {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.85rem;
+}
+
+.admin-search-row input,
+.admin-search-row select,
+.admin-card-add-row input,
+.admin-card-add-row select,
+.admin-section input,
+.admin-section textarea {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 0.75rem 0.85rem;
+  font: inherit;
+}
+
+.admin-section textarea {
+  resize: vertical;
+}
+
+.admin-snapshot {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.admin-snapshot > div,
+.admin-section,
+.admin-owned-card,
+.admin-check-row {
+  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--panel-strong);
+  border-radius: 18px;
+  padding: 0.85rem;
+}
+
+.admin-snapshot span,
+.admin-owned-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.admin-snapshot strong {
+  overflow-wrap: anywhere;
+}
+
+.admin-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.admin-section {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.admin-section h3 {
+  margin: 0;
+}
+
+.admin-section label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.admin-pack-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 21rem;
+  overflow: auto;
+}
+
+.admin-check-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.65rem;
+}
+
+.admin-check-row input {
+  width: auto;
+}
+
+.admin-owned-cards {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 28rem;
+  overflow: auto;
+}
+
+.admin-owned-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .admin-search-row,
+  .admin-card-add-row {
+    grid-template-columns: 1fr;
+  }
+}
