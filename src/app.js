@@ -1997,6 +1997,8 @@
       handleIncorrectAnswer(progress, answer);
     }
 
+    void persistWordAttemptToSupabase(progress, wasCorrect, wasCorrect ? scoreWord(progress.word) : 0);
+
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     saveState();
     renderStats();
@@ -2378,32 +2380,27 @@ function handleShopClick(event) {
       return;
     }
 
-    let localCard = { index: cardIndex, purchasedAt: Date.now(), source: "shop", attackStrength: null };
-
     if (supabaseClient && currentUser) {
-      const insertedCard = await upsertUserCard(cardIndex, "shop");
-      if (!insertedCard || !insertedCard.id) {
-        setShopFlash("Could not save that card online. Your points have not been spent. Please try again.", "error");
+      const { data, error } = await supabaseClient.rpc("buy_card", {
+        p_card_index: cardIndex
+      });
+
+      if (error || !data || !data.card) {
+        setShopFlash(`Could not buy that card online. ${error ? error.message : "Please try again."}`, "error");
         return;
       }
 
-      localCard = {
-        id: insertedCard.id,
-        index: cardIndex,
-        purchasedAt: new Date(insertedCard.purchased_at).getTime() || Date.now(),
-        source: insertedCard.acquired_from || "shop",
-        attackStrength: normaliseBattleAttack(insertedCard.attack_strength)
-      };
-    }
-
-    state.ownedCards.push(localCard);
-    reconcilePointBalanceFromCards(state);
-    lastPurchasedIndex = cardIndex;
-    saveState();
-
-    if (supabaseClient && currentUser) {
-      await saveRemoteProgressNow();
+      applyCanonicalBalance(data.balance);
+      lastPurchasedIndex = cardIndex;
       await refreshCardsFromSupabase();
+      await hydratePackUnlocksFromSupabase();
+      await saveRemoteProgressNow();
+    } else {
+      const localCard = { index: cardIndex, purchasedAt: Date.now(), source: "shop", attackStrength: null };
+      state.ownedCards.push(localCard);
+      reconcilePointBalanceFromCards(state);
+      lastPurchasedIndex = cardIndex;
+      saveState();
     }
 
     renderStats();
@@ -2532,17 +2529,24 @@ function handleShopClick(event) {
   }
 
   async function unlockPack(packId) {
-    if (!currentUser) {
+    if (!currentUser || !supabaseClient) {
       setShopFlash("Create an account or sign in before unlocking more packs.", "info");
       return;
     }
+
     if (!packId || isPackUnlocked(packId)) return;
-    const spareUnlocks = getPackUnlockSlots(state) - (state.unlockedPackIds || []).length;
-    if (spareUnlocks <= 0) {
-      setShopFlash(`Buy ${CARDS_PER_PACK_UNLOCK} cards for each new pack unlock. New users get one extra pack unlock free.`, "info");
+
+    const { data, error } = await supabaseClient.rpc("unlock_pack", {
+      p_pack_id: packId
+    });
+
+    if (error || !data || data.ok === false) {
+      const message = error ? error.message : (data && data.message ? data.message : `Buy ${CARDS_PER_PACK_UNLOCK} cards for each new pack unlock. New users get one extra pack unlock free.`);
+      setShopFlash(message, "info");
       return;
     }
-    state.unlockedPackIds.push(packId);
+
+    await hydratePackUnlocksFromSupabase();
     saveState();
     renderStats();
     renderShop();
@@ -2714,7 +2718,9 @@ function scoreWord(word) {
     if (currentUser) {
       await ensureProfile();
       await loadAndMergeSignedInState();
+      await bootstrapCanonicalStateFromLocal();
       await refreshCardsFromSupabase();
+      await hydrateCanonicalStateFromSupabase();
       await saveRemoteProgressNow();
       renderLevelSelector();
       renderStats();
@@ -2780,6 +2786,124 @@ function scoreWord(word) {
     }
 
     return data && data.state ? restoreStateShape(data.state) : null;
+  }
+
+  async function bootstrapCanonicalStateFromLocal() {
+    if (!supabaseClient || !currentUser) return;
+
+    const { error } = await supabaseClient.rpc("bootstrap_user_canonical_state", {
+      p_state: state
+    });
+
+    if (error) {
+      elements.authStatus.textContent = `Could not prepare online save tables: ${error.message}`;
+    }
+  }
+
+  async function hydrateCanonicalStateFromSupabase() {
+    if (!supabaseClient || !currentUser) return;
+
+    await hydrateBalanceFromSupabase();
+    await hydrateWordProgressFromSupabase();
+    await hydratePackUnlocksFromSupabase();
+
+    ensureProgressForActiveWords(state);
+    cleanQueue(state);
+    fillQueueToSize(state, ACTIVE_WORD_TARGET);
+    state.lastUpdatedAt = Date.now();
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+  }
+
+  async function hydrateBalanceFromSupabase() {
+    const { data, error } = await supabaseClient
+      .from("user_balances")
+      .select("shop_points,lifetime_points,battle_points,correct_spellings_toward_battle_point,total_correct_spellings")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (error || !data) return;
+    applyCanonicalBalance(data);
+  }
+
+  async function hydrateWordProgressFromSupabase() {
+    const { data, error } = await supabaseClient
+      .from("user_word_progress")
+      .select("word,level,attempts,correct_attempts,correct_streak,introduced,mastered,mastered_at,last_attempt_at,last_attempt_was_wrong")
+      .eq("user_id", currentUser.id);
+
+    if (error || !Array.isArray(data)) return;
+
+    for (const row of data) {
+      const word = String(row.word || "").trim().toLowerCase();
+      if (!word) continue;
+
+      const existing = state.progress[word] || makeBlankProgress(word);
+      const mastered = Boolean(existing.mastered || row.mastered);
+      state.progress[word] = {
+        ...makeBlankProgress(word),
+        ...existing,
+        word,
+        attempts: Math.max(Number(existing.attempts || 0), Number(row.attempts || 0)),
+        correctAttempts: Math.max(Number(existing.correctAttempts || 0), Number(row.correct_attempts || 0)),
+        correctStreak: mastered ? MASTERY_STREAK : Math.max(Number(existing.correctStreak || 0), Number(row.correct_streak || 0)),
+        introduced: Boolean(existing.introduced || row.introduced || mastered),
+        mastered,
+        masteredAt: chooseEarliestTruthy(existing.masteredAt, row.mastered_at ? new Date(row.mastered_at).getTime() : null),
+        lastAttemptAt: Math.max(Number(existing.lastAttemptAt || 0), row.last_attempt_at ? new Date(row.last_attempt_at).getTime() : 0) || null,
+        lastAttemptWasWrong: Boolean(row.last_attempt_was_wrong && !mastered)
+      };
+    }
+  }
+
+  async function hydratePackUnlocksFromSupabase() {
+    const { data, error } = await supabaseClient
+      .from("user_pack_unlocks")
+      .select("pack_id")
+      .eq("user_id", currentUser.id);
+
+    if (error || !Array.isArray(data)) return;
+
+    const packs = data.map((row) => row.pack_id).filter(Boolean);
+    state.unlockedPackIds = unionStrings(state.unlockedPackIds || [], packs, [INITIAL_UNLOCKED_PACK_ID]);
+    ensurePackUnlockState(state);
+  }
+
+  function applyCanonicalBalance(balance) {
+    if (!balance) return;
+
+    state.points = Math.max(0, Number(balance.shop_points || 0));
+    state.lifetimePoints = Math.max(Number(state.lifetimePoints || 0), Number(balance.lifetime_points || 0));
+    state.battlePoints = Math.max(0, Number(balance.battle_points || 0));
+    state.correctSpellingsTowardBattlePoint = Math.max(0, Number(balance.correct_spellings_toward_battle_point || 0));
+    state.totalCorrectSpellings = Math.max(Number(state.totalCorrectSpellings || 0), Number(balance.total_correct_spellings || 0));
+  }
+
+  async function persistWordAttemptToSupabase(progress, wasCorrect, earnedPoints) {
+    if (!supabaseClient || !currentUser || !progress || !progress.word) return;
+
+    const entry = getEntryForWord(progress.word);
+    const payload = {
+      p_word: progress.word,
+      p_level: entry ? entry.level : state.selectedLevel,
+      p_attempts: Number(progress.attempts || 0),
+      p_correct_attempts: Number(progress.correctAttempts || 0),
+      p_correct_streak: Number(progress.correctStreak || 0),
+      p_introduced: Boolean(progress.introduced),
+      p_mastered: Boolean(progress.mastered),
+      p_mastered_at: progress.masteredAt ? new Date(progress.masteredAt).toISOString() : null,
+      p_last_attempt_at: progress.lastAttemptAt ? new Date(progress.lastAttemptAt).toISOString() : new Date().toISOString(),
+      p_last_attempt_was_wrong: Boolean(progress.lastAttemptWasWrong)
+    };
+
+    const rpcName = wasCorrect ? "record_correct_spelling" : "record_incorrect_spelling";
+    const rpcPayload = wasCorrect ? { ...payload, p_word_points: Number(earnedPoints || 0) } : payload;
+
+    const { data, error } = await supabaseClient.rpc(rpcName, rpcPayload);
+    if (!error && data && data.balance) {
+      applyCanonicalBalance(data.balance);
+      saveState();
+      renderStats();
+    }
   }
 
   function mergeProgressStates(localState, remoteState) {
@@ -3481,6 +3605,18 @@ function scoreWord(word) {
     state.battlePoints = Math.max(0, Number(state.battlePoints || 0) - 1);
     saveState();
     renderStats();
+    void spendBattlePointRemote();
+  }
+
+  async function spendBattlePointRemote() {
+    if (!supabaseClient || !currentUser) return;
+
+    const { data, error } = await supabaseClient.rpc("spend_battle_point");
+    if (!error && data && data.balance) {
+      applyCanonicalBalance(data.balance);
+      saveState();
+      renderStats();
+    }
   }
 
   async function getOrCreateBattleStrength(ownedCard) {
