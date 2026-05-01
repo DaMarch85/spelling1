@@ -86,6 +86,7 @@
       <aside class="stats-card" aria-labelledby="statsTitle">
         <button class="primary-button battle-jump-button" id="battleArenaJump" type="button">Battle Arena</button>
         <h2 id="statsTitle">Score</h2>
+        <div class="save-status" id="saveStatus">Online save: checking…</div>
         <div class="stats-grid">
           <div>
             <span class="stat-number" id="pointsTotal">0</span>
@@ -209,6 +210,12 @@
         <p class="small-note" id="battleOpponent"></p>
         <div class="battle-grid" id="battleGrid" aria-label="Battle chance grid"></div>
         <p class="feedback" id="battleResult" aria-live="polite"></p>
+        <div class="recent-battles" id="recentBattlesPanel">
+          <h3>Recent battle results</h3>
+          <ul id="recentBattleList" class="recent-battle-list">
+            <li>Sign in to see recent battles.</li>
+          </ul>
+        </div>
       </section>
     </main>
 

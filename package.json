@@ -2,10 +2,10 @@
   "name": "spelling-battle-cards",
   "version": "1.0.0",
   "private": true,
-  "description": "A spelling, card collecting, and battle game for kids.",
+  "description": "A spelling game with spaced repetition, collectible cards, packs, leaderboards, and battle arena.",
   "scripts": {
     "start": "node scripts/dev-server.mjs",
-    "test": "node tests/words.test.js"
+    "test": "node tests/game-rules.test.js"
   },
   "license": "MIT"
 }

@@ -1268,12 +1268,12 @@
     { packId: "desserts", name: "Sticky Toffee Pudding", slug: "sticky-toffee-pudding", type: "Dessert", tagline: "A sticky pudding dripping with toffee sauce", description: "A sticky pudding dripping with toffee sauce.", art: "src/card-art/sticky-toffee-pudding.webp" }
   ]);
 
-  const ACTIVE_CARD_PACKS = Object.freeze([
+  let ACTIVE_CARD_PACKS = Object.freeze([
     ...CARD_PACKS.filter((pack) => pack.id !== "nature"),
     ...ADDITIONAL_CARD_PACKS
   ]);
 
-  const ACTIVE_CREATURE_CARD_TEMPLATES = Object.freeze([
+  let ACTIVE_CREATURE_CARD_TEMPLATES = Object.freeze([
     ...CREATURE_CARD_TEMPLATES.filter((card) => card.packId !== "nature"),
     ...ADDITIONAL_CREATURE_CARD_TEMPLATES
   ]);
@@ -1362,7 +1362,12 @@
     pointsLeaderboard: document.querySelector("#pointsLeaderboard"),
     masteredLeaderboard: document.querySelector("#masteredLeaderboard"),
     battleQueueCount: document.querySelector("#battleQueueCount"),
-    cancelBattleButton: document.querySelector("#cancelBattleButton")
+    cancelBattleButton: document.querySelector("#cancelBattleButton"),
+    debugGrid: document.querySelector("#debugGrid"),
+    debugRefreshButton: document.querySelector("#debugRefreshButton"),
+    saveStatus: document.querySelector("#saveStatus"),
+    recentBattleList: document.querySelector("#recentBattleList"),
+    recentBattlesPanel: document.querySelector("#recentBattlesPanel")
   };
 
   let supabaseClient = null;
@@ -1414,6 +1419,9 @@
     if (elements.battleArenaJump) {
       elements.battleArenaJump.addEventListener("click", () => elements.battlePanel.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
+    if (elements.debugRefreshButton) {
+      elements.debugRefreshButton.addEventListener("click", () => refreshDebugPanel());
+    }
     window.addEventListener("pagehide", () => {
       saveState();
       saveRemoteProgressNow();
@@ -1435,6 +1443,9 @@
     renderPacks();
     renderBattlePanel();
     renderLeaderboards();
+    refreshRecentBattleResults();
+    refreshDebugPanel();
+    renderSaveStatus();
     refreshBattleLobbyCount();
     startBattleLobbyRefresh();
     renderDueBadge();
@@ -2639,6 +2650,7 @@ function scoreWord(word) {
   async function initialiseSupabase() {
     if (!hasSupabaseConfig()) {
       elements.authStatus.textContent = "Supabase is not configured yet. Progress is saved on this device only.";
+      setSaveStatus("Online save: not configured", "error");
       elements.signInButton.disabled = true;
       elements.signUpButton.disabled = true;
       elements.signOutButton.hidden = true;
@@ -2648,6 +2660,8 @@ function scoreWord(word) {
 
     const config = getSupabaseConfig();
     supabaseClient = window.supabase.createClient(config.url, config.anonKey);
+    setSaveStatus("Online save: connected", "warn");
+    await loadCardDefinitionsFromSupabase();
     await loadWordEntriesFromSupabase();
 
     const { data } = await supabaseClient.auth.getSession();
@@ -2656,6 +2670,86 @@ function scoreWord(word) {
     supabaseClient.auth.onAuthStateChange(async (_event, session) => {
       await handleAuthSession(session);
     });
+  }
+
+  async function loadCardDefinitionsFromSupabase() {
+    if (!supabaseClient) {
+      return;
+    }
+
+    const { data: packRows, error: packError } = await supabaseClient
+      .from("card_packs")
+      .select("id,name,short_name,description,sort_order")
+      .order("sort_order", { ascending: true });
+
+    const { data: cardRows, error: cardError } = await supabaseClient
+      .from("cards")
+      .select("card_index,pack_id,name,slug,type,rarity,attack,power,price,tagline,description,art,sort_order")
+      .order("card_index", { ascending: true });
+
+    if (packError || cardError || !Array.isArray(packRows) || !Array.isArray(cardRows) || packRows.length === 0 || cardRows.length === 0) {
+      return;
+    }
+
+    const nextPacks = packRows
+      .filter((pack) => pack && pack.id)
+      .map((pack) => ({
+        id: pack.id,
+        name: pack.name || pack.id,
+        shortName: pack.short_name || pack.name || pack.id,
+        description: pack.description || "",
+        unlockHint: pack.id === INITIAL_UNLOCKED_PACK_ID ? "Unlocked at the start." : "Available after you earn a pack unlock."
+      }));
+
+    const validPackIds = new Set(nextPacks.map((pack) => pack.id));
+    const nextCards = [];
+
+    for (const row of cardRows) {
+      const index = Number(row.card_index);
+      if (!Number.isInteger(index) || index < 0 || !validPackIds.has(row.pack_id)) {
+        continue;
+      }
+
+      nextCards[index] = {
+        packId: row.pack_id,
+        name: row.name || `Card ${index}`,
+        slug: row.slug || `card-${index}`,
+        type: row.type || "Card",
+        rarity: row.rarity || "Common",
+        attack: Number(row.attack || 0),
+        power: Number(row.power || 0),
+        price: Number(row.price || 0),
+        tagline: row.tagline || "",
+        description: row.description || "",
+        art: row.art || ""
+      };
+    }
+
+    const completeCardList = nextCards.length > 0 && Array.from({ length: nextCards.length }, (_value, index) => Boolean(nextCards[index])).every(Boolean);
+    const hasDefaultPack = nextPacks.some((pack) => pack.id === INITIAL_UNLOCKED_PACK_ID);
+
+    if (!completeCardList || !hasDefaultPack) {
+      elements.authStatus.textContent = "Using built-in cards. Database card list is incomplete.";
+      return;
+    }
+
+    ACTIVE_CARD_PACKS = Object.freeze(nextPacks);
+    ACTIVE_CREATURE_CARD_TEMPLATES = Object.freeze(nextCards);
+
+    state = restoreStateShape(state);
+    ensurePackUnlockState(state);
+    renderStats();
+    renderShop();
+    renderCollection();
+    renderPacks();
+    renderBattlePanel();
+  }
+
+  function resetCardDefinitionsToFallback() {
+    ACTIVE_CARD_PACKS = FALLBACK_CARD_PACKS;
+    ACTIVE_CREATURE_CARD_TEMPLATES = FALLBACK_CREATURE_CARD_TEMPLATES;
+    state = restoreStateShape(state);
+    ensurePackUnlockState(state);
   }
 
   async function loadWordEntriesFromSupabase() {
@@ -2729,6 +2823,9 @@ function scoreWord(word) {
       renderPacks();
       renderBattlePanel();
       renderLeaderboards();
+      refreshRecentBattleResults();
+      refreshDebugPanel();
+      renderSaveStatus();
       renderLevelSelector();
     } else {
       state = loadStateFromKey(getAnonymousStorageKey());
@@ -2739,6 +2836,9 @@ function scoreWord(word) {
       renderPacks();
       renderBattlePanel();
       renderLeaderboards();
+      refreshRecentBattleResults();
+      refreshDebugPanel();
+      renderSaveStatus();
       renderLevelSelector();
       selectNextWord();
     }
@@ -3108,20 +3208,39 @@ function scoreWord(word) {
     remoteSaveTimer = window.setTimeout(saveRemoteProgress, 700);
   }
 
+  function makeRemoteCacheState() {
+    return {
+      version: state.version || 14,
+      lastUpdatedAt: Date.now(),
+      selectedLevel: state.selectedLevel || null,
+      unlockedLevels: getUnlockedLevels(state),
+      queue: Array.isArray(state.queue) ? state.queue.slice(0, ACTIVE_WORD_TARGET) : [],
+      turn: Number(state.turn || 0),
+      // Important values such as points, battle points, cards, packs, and mastered words
+      // are now stored in canonical Supabase tables, not in this cache object.
+      cacheOnly: true
+    };
+  }
+
   async function saveRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
 
+    setSaveStatus("Online save: saving…", "warn");
     const { error } = await supabaseClient
       .from("user_progress")
       .upsert({
         user_id: currentUser.id,
         mode: "graded",
-        state,
+        state: makeRemoteCacheState(),
         updated_at: new Date().toISOString()
       }, { onConflict: "user_id,mode" });
 
     if (!error) {
+      setSaveStatus(`Online save: saved ${new Date().toLocaleTimeString()}`, "ok");
       renderLeaderboards();
+      refreshDebugPanel();
+    } else {
+      setSaveStatus(`Online save error: ${error.message}`, "error");
     }
   }
 
@@ -3736,6 +3855,7 @@ function scoreWord(word) {
     currentBattlePointSpent = false;
     elements.enterBattleButton.disabled = false;
     renderBattlePanel();
+    refreshRecentBattleResults();
   }
 
   function getBattlePerspective(battle) {
@@ -3812,6 +3932,187 @@ function scoreWord(word) {
 
 
   
+  function setSaveStatus(message, type = "warn") {
+    if (!elements.saveStatus) return;
+    elements.saveStatus.textContent = message;
+    elements.saveStatus.className = `save-status is-${type}`;
+  }
+
+  function renderSaveStatus() {
+    if (!elements.saveStatus) return;
+    if (!supabaseClient) {
+      setSaveStatus("Online save: not configured", "error");
+    } else if (!currentUser) {
+      setSaveStatus("Online save: sign in to sync", "warn");
+    } else {
+      setSaveStatus(`Online save: signed in as ${getCurrentUsername()}`, "ok");
+    }
+  }
+
+  async function refreshRecentBattleResults() {
+    if (!elements.recentBattleList) return;
+
+    elements.recentBattleList.innerHTML = "";
+
+    if (!supabaseClient || !currentUser) {
+      elements.recentBattleList.appendChild(makeListItem("Sign in to see recent battles."));
+      return;
+    }
+
+    const { data, error } = await supabaseClient
+      .from("battle_rooms")
+      .select("id,status,challenger_id,challenger_name,challenger_card_index,challenger_attack,opponent_id,opponent_name,opponent_card_index,opponent_attack,winner_id,loser_id,resolved_at,created_at")
+      .eq("status", "resolved")
+      .or(`challenger_id.eq.${currentUser.id},opponent_id.eq.${currentUser.id}`)
+      .order("resolved_at", { ascending: false })
+      .limit(5);
+
+    if (error) {
+      elements.recentBattleList.appendChild(makeListItem("Recent battles unavailable."));
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      elements.recentBattleList.appendChild(makeListItem("No recent battles yet."));
+      return;
+    }
+
+    data.forEach((battle) => {
+      const didWin = battle.winner_id === currentUser.id;
+      const isChallenger = battle.challenger_id === currentUser.id;
+      const myCardIndex = isChallenger ? battle.challenger_card_index : battle.opponent_card_index;
+      const opponentCardIndex = isChallenger ? battle.opponent_card_index : battle.challenger_card_index;
+      const opponentName = isChallenger ? battle.opponent_name : battle.challenger_name;
+      const myCard = ACTIVE_CREATURE_CARD_TEMPLATES[myCardIndex];
+      const opponentCard = ACTIVE_CREATURE_CARD_TEMPLATES[opponentCardIndex];
+      const when = battle.resolved_at ? new Date(battle.resolved_at).toLocaleString() : "recently";
+      const text = `${didWin ? "Won" : "Lost"} with ${myCard ? myCard.name : "your card"} vs ${opponentName || "opponent"}${opponentCard ? ` (${opponentCard.name})` : ""} · ${when}`;
+      elements.recentBattleList.appendChild(makeListItem(text));
+    });
+  }
+
+  function makeListItem(text) {
+    const item = document.createElement("li");
+    item.textContent = text;
+    return item;
+  }
+
+  async function refreshDebugPanel() {
+    if (!elements.debugGrid) {
+      return;
+    }
+
+    const localSnapshot = getLocalDebugSnapshot();
+    let remoteSnapshot = {};
+
+    if (supabaseClient && currentUser) {
+      remoteSnapshot = await getRemoteDebugSnapshot();
+    }
+
+    renderDebugPanel(localSnapshot, remoteSnapshot);
+  }
+
+  function getLocalDebugSnapshot() {
+    const masteredCount = Object.values(state.progress || {}).filter((progress) => progress && progress.mastered).length;
+    const totalCorrect = getTotalCorrectSpellings();
+
+    return {
+      "Signed in": currentUser ? "yes" : "no",
+      "User": currentUser ? getCurrentUsername() : "anonymous",
+      "User ID": currentUser ? currentUser.id : "none",
+      "Storage key": getStorageKey(),
+      "Selected level": state.selectedLevel || "none",
+      "Shop points": Number(state.points || 0),
+      "Lifetime points": Number(state.lifetimePoints || 0),
+      "Battle points": Number(state.battlePoints || 0),
+      "Correct spellings": totalCorrect,
+      "Mastered words": masteredCount,
+      "Owned cards": (state.ownedCards || []).length,
+      "Unlocked packs": (state.unlockedPackIds || []).join(", ") || "none",
+      "Active packs/cards": `${ACTIVE_CARD_PACKS.length} packs / ${ACTIVE_CREATURE_CARD_TEMPLATES.length} cards`,
+      "Last local save": state.lastUpdatedAt ? new Date(state.lastUpdatedAt).toLocaleString() : "unknown"
+    };
+  }
+
+  async function getRemoteDebugSnapshot() {
+    const snapshot = {};
+
+    const { data: balance } = await supabaseClient
+      .from("user_balances")
+      .select("shop_points,lifetime_points,battle_points,total_correct_spellings,correct_spellings_toward_battle_point,updated_at")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (balance) {
+      snapshot["DB shop points"] = balance.shop_points;
+      snapshot["DB lifetime points"] = balance.lifetime_points;
+      snapshot["DB battle points"] = balance.battle_points;
+      snapshot["DB total correct"] = balance.total_correct_spellings;
+      snapshot["DB next battle counter"] = `${balance.correct_spellings_toward_battle_point}/10`;
+      snapshot["DB balance updated"] = balance.updated_at ? new Date(balance.updated_at).toLocaleString() : "unknown";
+    }
+
+    const wordCount = await countRows("user_word_progress", "user_id", currentUser.id);
+    const masteredCount = await countRows("user_word_progress", "user_id", currentUser.id, { column: "mastered", value: true });
+    const cardCount = await countRows("user_cards", "user_id", currentUser.id);
+    const packCount = await countRows("user_pack_unlocks", "user_id", currentUser.id);
+    const historyCount = await countRows("card_history", "user_id", currentUser.id);
+    const battleCount = await countBattleRowsForCurrentUser();
+
+    snapshot["DB word rows"] = wordCount;
+    snapshot["DB mastered rows"] = masteredCount;
+    snapshot["DB cards"] = cardCount;
+    snapshot["DB unlocked packs"] = packCount;
+    snapshot["DB card-history rows"] = historyCount;
+    snapshot["DB battle rows"] = battleCount;
+
+    return snapshot;
+  }
+
+  async function countRows(table, column, value, extraFilter = null) {
+    let query = supabaseClient
+      .from(table)
+      .select("*", { count: "exact", head: true })
+      .eq(column, value);
+
+    if (extraFilter) {
+      query = query.eq(extraFilter.column, extraFilter.value);
+    }
+
+    const { count, error } = await query;
+    return error ? "error" : Number(count || 0);
+  }
+
+
+  async function countBattleRowsForCurrentUser() {
+    const { count, error } = await supabaseClient
+      .from("battle_rooms")
+      .select("*", { count: "exact", head: true })
+      .or(`challenger_id.eq.${currentUser.id},opponent_id.eq.${currentUser.id}`);
+
+    return error ? "error" : Number(count || 0);
+  }
+
+  function renderDebugPanel(localSnapshot, remoteSnapshot = {}) {
+    if (!elements.debugGrid) {
+      return;
+    }
+
+    const rows = {
+      ...localSnapshot,
+      ...remoteSnapshot
+    };
+
+    elements.debugGrid.innerHTML = Object.entries(rows)
+      .map(([label, value]) => `
+        <div class="debug-row">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(String(value))}</strong>
+        </div>
+      `)
+      .join("");
+  }
+
   async function renderLeaderboards() {
     if (!elements.pointsLeaderboard || !elements.masteredLeaderboard) {
       return;
