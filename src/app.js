@@ -1405,6 +1405,10 @@
     if (elements.battleArenaJump) {
       elements.battleArenaJump.addEventListener("click", () => elements.battlePanel.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
+    window.addEventListener("pagehide", flushProgressBeforeUnload);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushProgressBeforeUnload();
+    });
 
     renderLevelSelector();
     setupVoicePicker();
@@ -1592,6 +1596,7 @@
       lifetimePoints: 0,
       battlePoints: 0,
       correctSpellingsTowardBattlePoint: 0,
+      lastUpdatedAt: Date.now(),
       ownedCards: [],
       unlockedPackIds: [INITIAL_UNLOCKED_PACK_ID],
       queue: [],
@@ -1700,9 +1705,18 @@
     }
   }
 
-  function saveState() {
+  function touchStateTimestamp(targetState = state) {
+    targetState.lastUpdatedAt = Date.now();
+  }
+
+  function saveState(options = {}) {
+    if (options.touch !== false) {
+      touchStateTimestamp(state);
+    }
     window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
-    queueRemoteProgressSave();
+    if (options.sync !== false) {
+      queueRemoteProgressSave();
+    }
   }
 
   function resetProgress() {
@@ -2272,18 +2286,28 @@ function handleShopClick(event) {
       return;
     }
 
+    let insertedCard = null;
+    if (supabaseClient && currentUser) {
+      insertedCard = await upsertUserCard(cardIndex, "shop");
+      if (!insertedCard || !insertedCard.id) {
+        setShopFlash("Could not save that card online. No points were spent. Please try again.", "error");
+        return;
+      }
+    }
+
     state.points -= cardCost;
-    const localCard = { index: cardIndex, purchasedAt: Date.now(), source: "shop", attackStrength: null };
+    const localCard = {
+      id: insertedCard && insertedCard.id ? insertedCard.id : null,
+      index: cardIndex,
+      purchasedAt: insertedCard && insertedCard.purchased_at ? (new Date(insertedCard.purchased_at).getTime() || Date.now()) : Date.now(),
+      source: "shop",
+      attackStrength: null
+    };
     state.ownedCards.push(localCard);
+    state.ownedCards = sanitiseOwnedCards(state.ownedCards);
     lastPurchasedIndex = cardIndex;
     saveState();
-
-    const insertedCard = await upsertUserCard(cardIndex, "shop");
-    if (insertedCard && insertedCard.id) {
-      localCard.id = insertedCard.id;
-      localCard.purchasedAt = new Date(insertedCard.purchased_at).getTime() || localCard.purchasedAt;
-      saveState();
-    }
+    await saveRemoteProgress();
 
     renderStats();
     renderShop();
@@ -2711,6 +2735,14 @@ function scoreWord(word) {
       }, { onConflict: "user_id" });
   }
 
+  function flushProgressBeforeUnload() {
+    if (!state) return;
+    saveState({ sync: false });
+    if (supabaseClient && currentUser) {
+      saveRemoteProgress();
+    }
+  }
+
   function queueRemoteProgressSave() {
     if (!supabaseClient || !currentUser) return;
 
@@ -2720,6 +2752,7 @@ function scoreWord(word) {
 
   async function saveRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
+    if (!state.lastUpdatedAt) touchStateTimestamp(state);
 
     const { error } = await supabaseClient
       .from("user_progress")
@@ -2738,6 +2771,7 @@ function scoreWord(word) {
   async function loadRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
 
+    const localBeforeLoad = restoreStateShape(state || makeInitialState());
     const { data, error } = await supabaseClient
       .from("user_progress")
       .select("state")
@@ -2750,12 +2784,141 @@ function scoreWord(word) {
       return;
     }
 
-    if (data && data.state) {
-      state = restoreStateShape(data.state);
-      saveState();
-    } else {
-      await saveRemoteProgress();
+    const remoteState = data && data.state ? restoreStateShape(data.state) : makeInitialState(localBeforeLoad.selectedLevel);
+    state = mergeSavedProgress(localBeforeLoad, remoteState);
+    saveState({ sync: false, touch: false });
+    await saveRemoteProgress();
+  }
+
+  function mergeSavedProgress(localState, remoteState) {
+    const local = restoreStateShape(localState || makeInitialState());
+    const remote = restoreStateShape(remoteState || makeInitialState(local.selectedLevel));
+    const selectedLevel = local.selectedLevel || remote.selectedLevel || null;
+    const merged = makeInitialState(selectedLevel);
+
+    merged.lastUpdatedAt = Math.max(Number(local.lastUpdatedAt || 0), Number(remote.lastUpdatedAt || 0), Date.now());
+    merged.selectedLevel = selectedLevel;
+    merged.unlockedLevels = mergeNumberArrays(local.unlockedLevels, remote.unlockedLevels);
+    if (selectedLevel && !merged.unlockedLevels.includes(selectedLevel)) {
+      merged.unlockedLevels.unshift(selectedLevel);
     }
+    merged.unlockedPackIds = mergeStringArrays(local.unlockedPackIds, remote.unlockedPackIds);
+    if (!merged.unlockedPackIds.includes(INITIAL_UNLOCKED_PACK_ID)) {
+      merged.unlockedPackIds.unshift(INITIAL_UNLOCKED_PACK_ID);
+    }
+
+    merged.progress = mergeProgressMaps(local.progress || {}, remote.progress || {});
+    merged.queue = mergeQueues(local.queue || [], remote.queue || [], merged.progress);
+    merged.turn = Math.max(Number(local.turn || 0), Number(remote.turn || 0));
+    merged.lifetimePoints = Math.max(Number(local.lifetimePoints || 0), Number(remote.lifetimePoints || 0), calculateEarnedPoints({ ...merged, progress: merged.progress }));
+    merged.battlePoints = Math.max(Number(local.battlePoints || 0), Number(remote.battlePoints || 0));
+    merged.correctSpellingsTowardBattlePoint = Math.max(Number(local.correctSpellingsTowardBattlePoint || 0), Number(remote.correctSpellingsTowardBattlePoint || 0));
+    merged.ownedCards = mergeOwnedCards(local.ownedCards || [], remote.ownedCards || []);
+
+    recalculateSpendablePointsFromMergedState(merged);
+    ensureProgressForActiveWords(merged);
+    ensurePackUnlockState(merged);
+    cleanQueue(merged);
+    fillQueueToSize(merged, ACTIVE_WORD_TARGET);
+    return restoreStateShape(merged);
+  }
+
+  function mergeProgressMaps(localProgress, remoteProgress) {
+    const merged = {};
+    const words = new Set([...Object.keys(localProgress || {}), ...Object.keys(remoteProgress || {})]);
+    for (const word of words) {
+      const local = localProgress[word] || {};
+      const remote = remoteProgress[word] || {};
+      const best = chooseBestProgress(local, remote, word);
+      merged[word] = best;
+    }
+    return merged;
+  }
+
+  function chooseBestProgress(a, b, word) {
+    const progress = {
+      ...makeBlankProgress(word),
+      ...a,
+      ...b,
+      word
+    };
+    progress.attempts = Math.max(Number(a.attempts || 0), Number(b.attempts || 0));
+    progress.correctAttempts = Math.max(Number(a.correctAttempts || 0), Number(b.correctAttempts || 0));
+    progress.correctStreak = Math.max(Number(a.correctStreak || 0), Number(b.correctStreak || 0));
+    progress.mastered = Boolean(a.mastered || b.mastered);
+    progress.introduced = Boolean(a.introduced || b.introduced || progress.mastered || progress.attempts > 0);
+    progress.lastAttemptWasWrong = Boolean((Number(a.lastAttemptAt || 0) >= Number(b.lastAttemptAt || 0) ? a : b).lastAttemptWasWrong);
+    progress.lastAttemptAt = Math.max(Number(a.lastAttemptAt || 0), Number(b.lastAttemptAt || 0));
+    progress.masteredAt = Math.max(Number(a.masteredAt || 0), Number(b.masteredAt || 0)) || null;
+    return progress;
+  }
+
+  function mergeOwnedCards(localCards, remoteCards) {
+    const byId = new Map();
+    const pending = [];
+    for (const card of sanitiseOwnedCards([...(localCards || []), ...(remoteCards || [])])) {
+      if (card.id) {
+        const existing = byId.get(card.id);
+        byId.set(card.id, existing ? mergeCardRecord(existing, card) : card);
+      } else {
+        pending.push(card);
+      }
+    }
+
+    const cards = Array.from(byId.values());
+    for (const card of pending) {
+      const duplicate = cards.find((existing) =>
+        !existing._matchedPending &&
+        existing.index === card.index &&
+        (existing.source || "shop") === (card.source || "shop") &&
+        Math.abs(Number(existing.purchasedAt || 0) - Number(card.purchasedAt || 0)) < 10 * 60 * 1000
+      );
+      if (duplicate) {
+        duplicate._matchedPending = true;
+        continue;
+      }
+      cards.push(card);
+    }
+
+    return cards
+      .map(({ _matchedPending, ...card }) => card)
+      .sort((a, b) => Number(a.purchasedAt || 0) - Number(b.purchasedAt || 0));
+  }
+
+  function mergeCardRecord(a, b) {
+    return {
+      ...a,
+      ...b,
+      purchasedAt: Math.min(Number(a.purchasedAt || Date.now()), Number(b.purchasedAt || Date.now())),
+      attackStrength: normaliseBattleAttack(b.attackStrength) || normaliseBattleAttack(a.attackStrength),
+      source: b.source || a.source || "shop"
+    };
+  }
+
+  function recalculateSpendablePointsFromMergedState(targetState) {
+    const shopCost = (targetState.ownedCards || [])
+      .filter((card) => !card.source || card.source === "shop")
+      .reduce((total, card) => total + getCardCost(Number(card.index)), 0);
+    const earned = Math.max(Number(targetState.lifetimePoints || 0), calculateEarnedPoints(targetState));
+    targetState.lifetimePoints = earned;
+    targetState.points = Math.max(0, earned - shopCost);
+  }
+
+  function mergeNumberArrays(a = [], b = []) {
+    return Array.from(new Set([...(a || []), ...(b || [])].map(Number).filter(Number.isFinite))).sort((x, y) => x - y);
+  }
+
+  function mergeStringArrays(a = [], b = []) {
+    return Array.from(new Set([...(a || []), ...(b || [])].filter(Boolean)));
+  }
+
+  function mergeQueues(localQueue, remoteQueue, progress) {
+    const result = [];
+    for (const word of [...(localQueue || []), ...(remoteQueue || [])]) {
+      if (!progress[word] || progress[word].mastered || result.includes(word)) continue;
+      result.push(word);
+    }
+    return result.slice(0, Math.max(ACTIVE_WORD_TARGET, result.length));
   }
 
   function restoreStateShape(savedState) {
@@ -2818,7 +2981,7 @@ function scoreWord(word) {
     return error ? null : data;
   }
 
-  async function refreshCardsFromSupabase() {
+  async function refreshCardsFromSupabase(options = {}) {
     if (!supabaseClient || !currentUser) return;
 
     const { data, error } = await supabaseClient
@@ -2832,13 +2995,16 @@ function scoreWord(word) {
       return;
     }
 
-    state.ownedCards = sanitiseOwnedCards((data || []).map((card) => ({
+    const remoteCards = sanitiseOwnedCards((data || []).map((card) => ({
       id: card.id,
       index: card.card_index,
       purchasedAt: new Date(card.purchased_at).getTime() || Date.now(),
       source: card.acquired_from || "shop",
       attackStrength: normaliseBattleAttack(card.attack_strength)
     })));
+
+    state.ownedCards = options.authoritative ? remoteCards : mergeOwnedCards(state.ownedCards || [], remoteCards);
+    recalculateSpendablePointsFromMergedState(state);
     ensurePackUnlockState(state);
     saveState();
   }
