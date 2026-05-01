@@ -3267,7 +3267,8 @@ function scoreWord(word) {
       source: card.acquired_from || "shop",
       attackStrength: normaliseBattleAttack(card.attack_strength)
     })));
-    reconcilePointBalanceFromCards(state);
+
+    await hydrateBalanceFromSupabase();
     ensurePackUnlockState(state);
     saveState();
   }
@@ -3446,9 +3447,15 @@ function scoreWord(word) {
     }
 
     const selectedId = String(elements.battleCardSelect.value || "");
-    const ownedCard = state.ownedCards.find((card) => String(card.id || `${card.index}-${card.purchasedAt}`) === selectedId);
-    if (!ownedCard) {
-      elements.battleStatus.textContent = "Choose a card you own.";
+    let ownedCard = state.ownedCards.find((card) => String(card.id || `${card.index}-${card.purchasedAt}`) === selectedId);
+
+    if (!ownedCard || !ownedCard.id) {
+      await refreshCardsFromSupabase();
+      ownedCard = state.ownedCards.find((card) => String(card.id || `${card.index}-${card.purchasedAt}`) === selectedId);
+    }
+
+    if (!ownedCard || !ownedCard.id) {
+      elements.battleStatus.textContent = "Choose a saved card you own.";
       return;
     }
 
@@ -3460,78 +3467,66 @@ function scoreWord(word) {
     currentBattlePointSpent = false;
     elements.enterBattleButton.disabled = true;
     elements.battleResult.textContent = "";
+    elements.battleOpponent.textContent = "";
     renderBattleGrid(0.5);
-    await cancelOwnStaleWaitingBattles();
 
-    const attackStrength = await getOrCreateBattleStrength(ownedCard);
-    const displayName = getCurrentUsername();
+    const result = await enterBattleWithRpc(ownedCard.id);
 
-    const { data: waitingBattle } = await supabaseClient
-      .from("battle_rooms")
-      .select("*")
-      .eq("status", "waiting")
-      .neq("challenger_id", currentUser.id)
-      .gte("heartbeat_at", getBattleHeartbeatCutoffIso())
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (waitingBattle) {
-      const { data: joinedBattle, error } = await supabaseClient
-        .from("battle_rooms")
-        .update({
-          opponent_id: currentUser.id,
-          opponent_name: displayName,
-          opponent_card_index: ownedCard.index,
-          opponent_card_id: ownedCard.id || null,
-          opponent_attack: attackStrength,
-          status: "ready"
-        })
-        .eq("id", waitingBattle.id)
-        .eq("status", "waiting")
-        .select()
-        .single();
-
-      if (error) {
-        elements.battleStatus.textContent = `Could not join battle: ${error.message}`;
-        elements.enterBattleButton.disabled = false;
-        return;
-      }
-
-      spendBattlePoint();
-      currentBattlePointSpent = true;
-      currentBattle = joinedBattle;
-      renderMatchedBattle(joinedBattle);
-      await resolveCurrentBattle();
+    if (!result || result.ok === false) {
+      elements.battleStatus.textContent = result && result.message ? result.message : "Could not enter battle. Please try again.";
+      elements.enterBattleButton.disabled = false;
+      setBattleWaitingUi(false);
       return;
     }
 
-    const { data: createdBattle, error } = await supabaseClient
-      .from("battle_rooms")
-      .insert({
-        challenger_id: currentUser.id,
-        challenger_name: displayName,
-        challenger_card_index: ownedCard.index,
-        challenger_card_id: ownedCard.id || null,
-        challenger_attack: attackStrength,
-        heartbeat_at: new Date().toISOString(),
-        status: "waiting"
-      })
-      .select()
-      .single();
+    if (result.balance) {
+      applyCanonicalBalance(result.balance);
+      saveState();
+      renderStats();
+    }
+
+    currentBattle = result.battle || null;
+
+    if (result.status === "waiting" && currentBattle) {
+      setBattleWaitingUi(true);
+      const cardIndex = currentBattle.challenger_card_index ?? ownedCard.index;
+      const attack = currentBattle.challenger_attack || ownedCard.attackStrength || "?";
+      elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[cardIndex].name} strength: ${attack}. Keep this lobby open, or cancel to leave.`;
+      startBattlePolling(currentBattle.id);
+      await refreshCardsFromSupabase();
+      renderBattlePanel();
+      return;
+    }
+
+    if (result.status === "resolved" && currentBattle) {
+      setBattleWaitingUi(false);
+      stopBattlePolling();
+      renderMatchedBattle(currentBattle);
+      await showResolvedBattle(currentBattle);
+      await refreshCardsFromSupabase();
+      await hydrateCanonicalStateFromSupabase();
+      renderStats();
+      renderShop();
+      renderCollection();
+      renderPacks();
+      renderBattlePanel();
+      return;
+    }
+
+    elements.battleStatus.textContent = "Battle response was not recognised. Please refresh and try again.";
+    elements.enterBattleButton.disabled = false;
+  }
+
+  async function enterBattleWithRpc(cardId) {
+    const { data, error } = await supabaseClient.rpc("enter_battle", {
+      p_card_id: cardId
+    });
 
     if (error) {
-      elements.battleStatus.textContent = `Could not create battle: ${error.message}`;
-      elements.enterBattleButton.disabled = false;
-      return;
+      return { ok: false, message: error.message };
     }
 
-    currentBattlePointSpent = false;
-    currentBattle = createdBattle;
-    setBattleWaitingUi(true);
-    elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index].name} strength: ${attackStrength}. Keep this lobby open, or cancel to leave.`;
-    elements.battleOpponent.textContent = "";
-    startBattlePolling(createdBattle.id);
+    return data || { ok: false, message: "No battle response returned." };
   }
 
   async function tryMatchWhileWaiting() {
@@ -3539,66 +3534,45 @@ function scoreWord(word) {
       return false;
     }
 
-    const currentCreatedAt = currentBattle.created_at || new Date().toISOString();
-    const { data: waitingBattle, error: findError } = await supabaseClient
-      .from("battle_rooms")
-      .select("*")
-      .eq("status", "waiting")
-      .neq("challenger_id", currentUser.id)
-      .gte("heartbeat_at", getBattleHeartbeatCutoffIso())
-      .lt("created_at", currentCreatedAt)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (findError || !waitingBattle) {
+    const cardId = currentBattle.challenger_card_id;
+    if (!cardId) {
       return false;
     }
 
-    const selectedId = String(elements.battleCardSelect.value || "");
-    const ownedCard = state.ownedCards.find((card) => String(card.id || `${card.index}-${card.purchasedAt}`) === selectedId);
-    if (!ownedCard) {
-      elements.battleStatus.textContent = "Choose a card you own.";
+    const result = await enterBattleWithRpc(cardId);
+
+    if (!result || result.ok === false) {
       return false;
     }
 
-    const attackStrength = await getOrCreateBattleStrength(ownedCard);
-    const displayName = getCurrentUsername();
-    const ownWaitingBattleId = currentBattle.id;
+    if (result.balance) {
+      applyCanonicalBalance(result.balance);
+      saveState();
+      renderStats();
+    }
 
-    const { data: joinedBattle, error: joinError } = await supabaseClient
-      .from("battle_rooms")
-      .update({
-        opponent_id: currentUser.id,
-        opponent_name: displayName,
-        opponent_card_index: ownedCard.index,
-        opponent_card_id: ownedCard.id || null,
-        opponent_attack: attackStrength,
-        status: "ready"
-      })
-      .eq("id", waitingBattle.id)
-      .eq("status", "waiting")
-      .select()
-      .single();
-
-    if (joinError || !joinedBattle) {
+    if (result.status === "waiting") {
+      currentBattle = result.battle || currentBattle;
       return false;
     }
 
-    await supabaseClient
-      .from("battle_rooms")
-      .update({ status: "cancelled" })
-      .eq("id", ownWaitingBattleId)
-      .eq("challenger_id", currentUser.id)
-      .eq("status", "waiting");
+    if (result.status === "resolved" && result.battle) {
+      currentBattle = result.battle;
+      stopBattlePolling();
+      setBattleWaitingUi(false);
+      renderMatchedBattle(currentBattle);
+      await showResolvedBattle(currentBattle);
+      await refreshCardsFromSupabase();
+      await hydrateCanonicalStateFromSupabase();
+      renderStats();
+      renderShop();
+      renderCollection();
+      renderPacks();
+      renderBattlePanel();
+      return true;
+    }
 
-    spendBattlePoint();
-    currentBattlePointSpent = true;
-    currentBattle = joinedBattle;
-    setBattleWaitingUi(false);
-    renderMatchedBattle(joinedBattle);
-    await resolveCurrentBattle();
-    return true;
+    return false;
   }
 
   function spendBattlePoint() {
@@ -3672,10 +3646,6 @@ function scoreWord(word) {
 
       if (data.status === "ready") {
         renderMatchedBattle(data);
-        if (!currentBattlePointSpent) {
-          spendBattlePoint();
-          currentBattlePointSpent = true;
-        }
         await resolveCurrentBattle();
       } else if (data.status === "resolved") {
         stopBattlePolling();
