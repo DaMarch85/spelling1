@@ -9,6 +9,15 @@
   let WORDS = [];
 
   const BASE_STORAGE_KEY = "spell-battle-cards-state-v13";
+  const SHARED_LOCAL_MIGRATION_KEYS = [
+    "spell-battle-cards-state-v13",
+    "spell-battle-cards-state-v13:anonymous",
+    "spell-battle-cards-state-v12",
+    "spell-battle-cards-state-v11",
+    "spell-battle-cards-state-v10",
+    "spell-battle-cards-state-v9",
+    "spell-battle-cards-state-v8"
+  ];
   const VOICE_STORAGE_KEY = "dino-speller-preferred-voice";
   const DEFAULT_VOICE_NAME = "Google UK English Male";
   const DEFAULT_VOICE_LANG = "en-GB";
@@ -1443,6 +1452,70 @@
     return currentUser && currentUser.id ? getUserStorageKey(currentUser.id) : getAnonymousStorageKey();
   }
 
+  function getLegacyLocalMigrationMarkerKey(userId) {
+    return `${BASE_STORAGE_KEY}:legacy-migration-done:${userId}`;
+  }
+
+  function hasLegacyLocalMigrationRun(userId) {
+    return Boolean(window.localStorage.getItem(getLegacyLocalMigrationMarkerKey(userId)));
+  }
+
+  function markLegacyLocalMigrationRun(userId, summary) {
+    window.localStorage.setItem(getLegacyLocalMigrationMarkerKey(userId), JSON.stringify({
+      migratedAt: Date.now(),
+      ...summary
+    }));
+  }
+
+  function getLegacyLocalMigrationStates() {
+    if (!currentUser || !currentUser.id || hasLegacyLocalMigrationRun(currentUser.id)) {
+      return [];
+    }
+
+    const currentUserKey = getUserStorageKey(currentUser.id);
+    const keys = Array.from(new Set(SHARED_LOCAL_MIGRATION_KEYS.filter((key) => key !== currentUserKey)));
+    const states = [];
+
+    for (const key of keys) {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(raw);
+        const restored = restoreStateShape(parsed);
+        if (hasMeaningfulSavedProgress(restored)) {
+          states.push({ key, state: restored });
+        }
+      } catch (_error) {
+        // Ignore old or corrupt localStorage entries.
+      }
+    }
+
+    return states;
+  }
+
+  function hasMeaningfulSavedProgress(candidate) {
+    if (!candidate || typeof candidate !== "object") {
+      return false;
+    }
+
+    const progressValues = Object.values(candidate.progress || {});
+    return Boolean(
+      Number(candidate.points || 0) > 0 ||
+      Number(candidate.lifetimePoints || 0) > 0 ||
+      Number(candidate.battlePoints || 0) > 0 ||
+      Number(candidate.correctSpellingsTowardBattlePoint || 0) > 0 ||
+      (Array.isArray(candidate.ownedCards) && candidate.ownedCards.length > 0) ||
+      (Array.isArray(candidate.unlockedPackIds) && candidate.unlockedPackIds.length > 1) ||
+      progressValues.some((progress) =>
+        progress &&
+        (progress.mastered || Number(progress.attempts || 0) > 0 || Number(progress.correctAttempts || 0) > 0)
+      )
+    );
+  }
+
   function normaliseWordEntries(entries) {
     return entries
       .map((entry, index) => {
@@ -2666,14 +2739,29 @@ function scoreWord(word) {
   }
 
   async function loadAndMergeSignedInState() {
-    const localState = loadStateFromKey(getStorageKey());
+    let localState = loadStateFromKey(getStorageKey());
+    const migrationStates = getLegacyLocalMigrationStates();
+
+    for (const migrationState of migrationStates) {
+      localState = mergeProgressStates(localState, migrationState.state);
+    }
+
     const remoteState = await fetchRemoteProgressState();
     state = mergeProgressStates(localState, remoteState || makeInitialState(localState.selectedLevel || null));
+
     ensureProgressForActiveWords(state);
     cleanQueue(state);
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     state.lastUpdatedAt = Date.now();
     window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+
+    if (migrationStates.length > 0) {
+      markLegacyLocalMigrationRun(currentUser.id, {
+        sourceKeys: migrationStates.map((entry) => entry.key)
+      });
+    }
+
+    await syncUnsavedLocalCardsToSupabase();
   }
 
   async function fetchRemoteProgressState() {
@@ -2985,6 +3073,53 @@ function scoreWord(word) {
     }
 
     return error ? null : data;
+  }
+
+  async function syncUnsavedLocalCardsToSupabase() {
+    if (!supabaseClient || !currentUser) {
+      return;
+    }
+
+    const existingShopCardIndexes = new Set(
+      (state.ownedCards || [])
+        .filter((card) => card && card.id)
+        .map((card) => Number(card.index))
+        .filter((index) => Number.isInteger(index))
+    );
+
+    const localOnlyCards = (state.ownedCards || [])
+      .filter((card) =>
+        card &&
+        !card.id &&
+        (!card.source || card.source === "shop") &&
+        Number.isInteger(Number(card.index)) &&
+        Number(card.index) >= 0 &&
+        Number(card.index) < ACTIVE_CREATURE_CARD_TEMPLATES.length
+      )
+      .filter((card) => {
+        const index = Number(card.index);
+        if (existingShopCardIndexes.has(index)) {
+          return false;
+        }
+        existingShopCardIndexes.add(index);
+        return true;
+      });
+
+    for (const card of localOnlyCards) {
+      const insertedCard = await upsertUserCard(Number(card.index), card.source || "shop");
+      if (insertedCard && insertedCard.id) {
+        card.id = insertedCard.id;
+        card.purchasedAt = new Date(insertedCard.purchased_at).getTime() || Number(card.purchasedAt) || Date.now();
+        card.source = insertedCard.acquired_from || card.source || "shop";
+        card.attackStrength = normaliseBattleAttack(insertedCard.attack_strength);
+      }
+    }
+
+    if (localOnlyCards.length > 0) {
+      state.lastUpdatedAt = Date.now();
+      window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+      await saveRemoteProgressNow();
+    }
   }
 
   async function refreshCardsFromSupabase() {
