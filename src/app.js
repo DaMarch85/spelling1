@@ -1356,14 +1356,14 @@
     cancelBattleButton: document.querySelector("#cancelBattleButton")
   };
 
+  let supabaseClient = null;
+  let currentUser = null;
   let state = loadState();
   let levelPanelCollapsed = Boolean(state && state.selectedLevel);
   let currentWord = null;
   let autoAdvanceTimer = null;
   let availableVoices = [];
   let lastPurchasedIndex = null;
-  let supabaseClient = null;
-  let currentUser = null;
   let remoteSaveTimer = null;
   let currentBattle = null;
   let currentBattlePointSpent = false;
@@ -1405,9 +1405,15 @@
     if (elements.battleArenaJump) {
       elements.battleArenaJump.addEventListener("click", () => elements.battlePanel.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
-    window.addEventListener("pagehide", flushProgressBeforeUnload);
+    window.addEventListener("pagehide", () => {
+      saveState();
+      saveRemoteProgressNow();
+    });
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") flushProgressBeforeUnload();
+      if (document.visibilityState === "hidden") {
+        saveState();
+        saveRemoteProgressNow();
+      }
     });
 
     renderLevelSelector();
@@ -1425,8 +1431,16 @@
     renderDueBadge();
   }
 
+  function getAnonymousStorageKey() {
+    return `${BASE_STORAGE_KEY}:anonymous`;
+  }
+
+  function getUserStorageKey(userId) {
+    return `${BASE_STORAGE_KEY}:user:${userId}`;
+  }
+
   function getStorageKey() {
-    return BASE_STORAGE_KEY;
+    return currentUser && currentUser.id ? getUserStorageKey(currentUser.id) : getAnonymousStorageKey();
   }
 
   function normaliseWordEntries(entries) {
@@ -1559,13 +1573,22 @@
   }
 
   function chooseStartingLevel(level) {
-    state = makeInitialState(level);
+    const safeLevel = clamp(Number(level), MIN_LEVEL, MAX_LEVEL);
+    state.selectedLevel = safeLevel;
+    state.unlockedLevels = Array.from(new Set([...(state.unlockedLevels || []), safeLevel]))
+      .filter((levelValue) => Number.isInteger(Number(levelValue)))
+      .map(Number)
+      .sort((a, b) => a - b);
+    state.queue = [];
+    ensureProgressForActiveWords(state);
+    fillQueueToSize(state, ACTIVE_WORD_TARGET);
     levelPanelCollapsed = true;
     currentWord = null;
     clearAutoAdvance();
     saveState();
     if (currentUser) {
       ensureProfile();
+      saveRemoteProgressNow();
     }
     renderLevelSelector();
     selectNextWord();
@@ -1589,14 +1612,14 @@
   function makeInitialState(selectedLevel = null) {
     const safeLevel = Number.isInteger(Number(selectedLevel)) ? clamp(Number(selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
     const initialState = {
-      version: 11,
+      version: 14,
+      lastUpdatedAt: Date.now(),
       selectedLevel: safeLevel,
       unlockedLevels: safeLevel ? [safeLevel] : [],
       points: 0,
       lifetimePoints: 0,
       battlePoints: 0,
       correctSpellingsTowardBattlePoint: 0,
-      lastUpdatedAt: Date.now(),
       ownedCards: [],
       unlockedPackIds: [INITIAL_UNLOCKED_PACK_ID],
       queue: [],
@@ -1615,11 +1638,15 @@
   }
 
   function loadState() {
+    return loadStateFromKey(getStorageKey());
+  }
+
+  function loadStateFromKey(storageKey = getStorageKey()) {
     const fallback = makeInitialState();
-    const currentRaw = window.localStorage.getItem(getStorageKey());
-    const legacyRaw = LEGACY_STORAGE_KEYS
-      .map((key) => window.localStorage.getItem(key))
-      .find((value) => Boolean(value));
+    const currentRaw = window.localStorage.getItem(storageKey);
+    const legacyRaw = storageKey === getAnonymousStorageKey()
+      ? LEGACY_STORAGE_KEYS.map((key) => window.localStorage.getItem(key)).find((value) => Boolean(value))
+      : null;
     const raw = currentRaw || legacyRaw;
 
     if (!raw) {
@@ -1630,7 +1657,8 @@
       const parsed = JSON.parse(raw);
       const selectedLevel = Number.isInteger(Number(parsed.selectedLevel)) ? clamp(Number(parsed.selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
       const loaded = {
-        version: 11,
+        version: 14,
+        lastUpdatedAt: Number.isFinite(Number(parsed.lastUpdatedAt)) ? Number(parsed.lastUpdatedAt) : 0,
         selectedLevel,
         unlockedLevels: Array.isArray(parsed.unlockedLevels) ? parsed.unlockedLevels : (selectedLevel ? [selectedLevel] : []),
         points: Number.isFinite(parsed.points) ? Math.max(0, parsed.points) : 0,
@@ -1650,13 +1678,6 @@
       } else {
         loaded.unlockedLevels = getUnlockedLevels(loaded);
         ensureProgressForActiveWords(loaded);
-
-        const allowedWords = new Set(WORDS);
-        for (const word of Object.keys(loaded.progress)) {
-          if (!allowedWords.has(word)) {
-            delete loaded.progress[word];
-          }
-        }
 
         for (const word of WORDS) {
           const savedProgress = loaded.progress[word] || {};
@@ -1705,18 +1726,16 @@
     }
   }
 
-  function touchStateTimestamp(targetState = state) {
-    targetState.lastUpdatedAt = Date.now();
+  function saveState() {
+    state.lastUpdatedAt = Date.now();
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+    queueRemoteProgressSave();
   }
 
-  function saveState(options = {}) {
-    if (options.touch !== false) {
-      touchStateTimestamp(state);
-    }
-    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
-    if (options.sync !== false) {
-      queueRemoteProgressSave();
-    }
+  async function saveRemoteProgressNow() {
+    if (!supabaseClient || !currentUser) return;
+    window.clearTimeout(remoteSaveTimer);
+    await saveRemoteProgress();
   }
 
   function resetProgress() {
@@ -2286,28 +2305,33 @@ function handleShopClick(event) {
       return;
     }
 
-    let insertedCard = null;
+    let localCard = { index: cardIndex, purchasedAt: Date.now(), source: "shop", attackStrength: null };
+
     if (supabaseClient && currentUser) {
-      insertedCard = await upsertUserCard(cardIndex, "shop");
+      const insertedCard = await upsertUserCard(cardIndex, "shop");
       if (!insertedCard || !insertedCard.id) {
-        setShopFlash("Could not save that card online. No points were spent. Please try again.", "error");
+        setShopFlash("Could not save that card online. Your points have not been spent. Please try again.", "error");
         return;
       }
+
+      localCard = {
+        id: insertedCard.id,
+        index: cardIndex,
+        purchasedAt: new Date(insertedCard.purchased_at).getTime() || Date.now(),
+        source: insertedCard.acquired_from || "shop",
+        attackStrength: normaliseBattleAttack(insertedCard.attack_strength)
+      };
     }
 
-    state.points -= cardCost;
-    const localCard = {
-      id: insertedCard && insertedCard.id ? insertedCard.id : null,
-      index: cardIndex,
-      purchasedAt: insertedCard && insertedCard.purchased_at ? (new Date(insertedCard.purchased_at).getTime() || Date.now()) : Date.now(),
-      source: "shop",
-      attackStrength: null
-    };
     state.ownedCards.push(localCard);
-    state.ownedCards = sanitiseOwnedCards(state.ownedCards);
+    reconcilePointBalanceFromCards(state);
     lastPurchasedIndex = cardIndex;
     saveState();
-    await saveRemoteProgress();
+
+    if (supabaseClient && currentUser) {
+      await saveRemoteProgressNow();
+      await refreshCardsFromSupabase();
+    }
 
     renderStats();
     renderShop();
@@ -2616,8 +2640,9 @@ function scoreWord(word) {
 
     if (currentUser) {
       await ensureProfile();
-      await loadRemoteProgress();
+      await loadAndMergeSignedInState();
       await refreshCardsFromSupabase();
+      await saveRemoteProgressNow();
       renderLevelSelector();
       renderStats();
       renderShop();
@@ -2627,10 +2652,132 @@ function scoreWord(word) {
       renderLeaderboards();
       renderLevelSelector();
     } else {
+      state = loadStateFromKey(getAnonymousStorageKey());
+      currentWord = null;
+      renderStats();
+      renderShop();
+      renderCollection();
+      renderPacks();
       renderBattlePanel();
       renderLeaderboards();
       renderLevelSelector();
+      selectNextWord();
     }
+  }
+
+  async function loadAndMergeSignedInState() {
+    const localState = loadStateFromKey(getStorageKey());
+    const remoteState = await fetchRemoteProgressState();
+    state = mergeProgressStates(localState, remoteState || makeInitialState(localState.selectedLevel || null));
+    ensureProgressForActiveWords(state);
+    cleanQueue(state);
+    fillQueueToSize(state, ACTIVE_WORD_TARGET);
+    state.lastUpdatedAt = Date.now();
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+  }
+
+  async function fetchRemoteProgressState() {
+    if (!supabaseClient || !currentUser) return null;
+
+    const { data, error } = await supabaseClient
+      .from("user_progress")
+      .select("state")
+      .eq("user_id", currentUser.id)
+      .eq("mode", "graded")
+      .maybeSingle();
+
+    if (error) {
+      elements.authStatus.textContent = `Could not load saved progress: ${error.message}`;
+      return null;
+    }
+
+    return data && data.state ? restoreStateShape(data.state) : null;
+  }
+
+  function mergeProgressStates(localState, remoteState) {
+    const local = restoreStateShape(localState || makeInitialState());
+    const remote = restoreStateShape(remoteState || makeInitialState(local.selectedLevel || null));
+    const newer = Number(local.lastUpdatedAt || 0) >= Number(remote.lastUpdatedAt || 0) ? local : remote;
+    const selectedLevel = newer.selectedLevel || local.selectedLevel || remote.selectedLevel || null;
+
+    const merged = {
+      ...makeInitialState(selectedLevel),
+      ...newer,
+      version: 14,
+      selectedLevel,
+      lastUpdatedAt: Math.max(Number(local.lastUpdatedAt || 0), Number(remote.lastUpdatedAt || 0), Date.now()),
+      unlockedLevels: unionNumbers(local.unlockedLevels, remote.unlockedLevels, selectedLevel ? [selectedLevel] : []),
+      unlockedPackIds: unionStrings(local.unlockedPackIds, remote.unlockedPackIds, [INITIAL_UNLOCKED_PACK_ID]),
+      points: Math.max(Number(local.points || 0), Number(remote.points || 0), 0),
+      lifetimePoints: Math.max(Number(local.lifetimePoints || 0), Number(remote.lifetimePoints || 0), calculateEarnedPoints(local), calculateEarnedPoints(remote), 0),
+      battlePoints: Math.max(Number(local.battlePoints || 0), Number(remote.battlePoints || 0), 0),
+      correctSpellingsTowardBattlePoint: Math.max(Number(local.correctSpellingsTowardBattlePoint || 0), Number(remote.correctSpellingsTowardBattlePoint || 0), 0),
+      progress: mergeWordProgress(local.progress, remote.progress),
+      ownedCards: sanitiseOwnedCards([...(local.ownedCards || []), ...(remote.ownedCards || [])]),
+      queue: Array.isArray(newer.queue) ? newer.queue.slice() : []
+    };
+
+    ensureProgressForActiveWords(merged);
+    reconcilePointBalanceFromCards(merged);
+    ensurePackUnlockState(merged);
+    cleanQueue(merged);
+    fillQueueToSize(merged, ACTIVE_WORD_TARGET);
+    return merged;
+  }
+
+  function mergeWordProgress(localProgress = {}, remoteProgress = {}) {
+    const merged = {};
+    const words = new Set([...Object.keys(localProgress || {}), ...Object.keys(remoteProgress || {})]);
+
+    for (const word of words) {
+      const local = { ...makeBlankProgress(word), ...(localProgress[word] || {}) };
+      const remote = { ...makeBlankProgress(word), ...(remoteProgress[word] || {}) };
+      const localTime = Number(local.lastAttemptAt || local.masteredAt || 0);
+      const remoteTime = Number(remote.lastAttemptAt || remote.masteredAt || 0);
+      const latest = localTime >= remoteTime ? local : remote;
+      const mastered = Boolean(local.mastered || remote.mastered);
+
+      merged[word] = {
+        ...makeBlankProgress(word),
+        ...latest,
+        word,
+        attempts: Math.max(Number(local.attempts || 0), Number(remote.attempts || 0)),
+        correctAttempts: Math.max(Number(local.correctAttempts || 0), Number(remote.correctAttempts || 0)),
+        correctStreak: mastered ? MASTERY_STREAK : Math.max(Number(local.correctStreak || 0), Number(remote.correctStreak || 0)),
+        introduced: Boolean(local.introduced || remote.introduced || mastered),
+        mastered,
+        masteredAt: chooseEarliestTruthy(local.masteredAt, remote.masteredAt),
+        lastAttemptAt: Math.max(Number(local.lastAttemptAt || 0), Number(remote.lastAttemptAt || 0)) || null,
+        lastAttemptWasWrong: Boolean(latest.lastAttemptWasWrong && !mastered)
+      };
+    }
+
+    return merged;
+  }
+
+  function unionNumbers(...arrays) {
+    return Array.from(new Set(arrays.flat().map(Number).filter((value) => Number.isInteger(value))))
+      .sort((a, b) => a - b);
+  }
+
+  function unionStrings(...arrays) {
+    return Array.from(new Set(arrays.flat().filter((value) => typeof value === "string" && value)));
+  }
+
+  function chooseEarliestTruthy(...values) {
+    const numeric = values.map(Number).filter((value) => Number.isFinite(value) && value > 0);
+    return numeric.length ? Math.min(...numeric) : null;
+  }
+
+  function calculateShopPurchasedCardCost(cards) {
+    return (cards || [])
+      .filter((card) => !card.source || card.source === "shop")
+      .reduce((total, card) => total + getCardCost(Number(card.index)), 0);
+  }
+
+  function reconcilePointBalanceFromCards(targetState) {
+    targetState.lifetimePoints = Math.max(Number(targetState.lifetimePoints || 0), calculateEarnedPoints(targetState));
+    targetState.points = Math.max(0, targetState.lifetimePoints - calculateShopPurchasedCardCost(targetState.ownedCards));
   }
 
   function renderAuthPanel() {
@@ -2715,7 +2862,14 @@ function scoreWord(word) {
     stopBattlePolling();
     await supabaseClient.auth.signOut();
     currentUser = null;
+    state = loadStateFromKey(getAnonymousStorageKey());
+    currentWord = null;
     renderAuthPanel();
+    renderLevelSelector();
+    selectNextWord();
+    renderStats();
+    renderShop();
+    renderCollection();
     renderBattlePanel();
     renderPacks();
   }
@@ -2735,14 +2889,6 @@ function scoreWord(word) {
       }, { onConflict: "user_id" });
   }
 
-  function flushProgressBeforeUnload() {
-    if (!state) return;
-    saveState({ sync: false });
-    if (supabaseClient && currentUser) {
-      saveRemoteProgress();
-    }
-  }
-
   function queueRemoteProgressSave() {
     if (!supabaseClient || !currentUser) return;
 
@@ -2752,7 +2898,6 @@ function scoreWord(word) {
 
   async function saveRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
-    if (!state.lastUpdatedAt) touchStateTimestamp(state);
 
     const { error } = await supabaseClient
       .from("user_progress")
@@ -2771,154 +2916,13 @@ function scoreWord(word) {
   async function loadRemoteProgress() {
     if (!supabaseClient || !currentUser) return;
 
-    const localBeforeLoad = restoreStateShape(state || makeInitialState());
-    const { data, error } = await supabaseClient
-      .from("user_progress")
-      .select("state")
-      .eq("user_id", currentUser.id)
-      .eq("mode", "graded")
-      .maybeSingle();
-
-    if (error) {
-      elements.authStatus.textContent = `Could not load saved progress: ${error.message}`;
-      return;
+    const remoteState = await fetchRemoteProgressState();
+    if (remoteState) {
+      state = mergeProgressStates(state, remoteState);
+      saveState();
+    } else {
+      await saveRemoteProgress();
     }
-
-    const remoteState = data && data.state ? restoreStateShape(data.state) : makeInitialState(localBeforeLoad.selectedLevel);
-    state = mergeSavedProgress(localBeforeLoad, remoteState);
-    saveState({ sync: false, touch: false });
-    await saveRemoteProgress();
-  }
-
-  function mergeSavedProgress(localState, remoteState) {
-    const local = restoreStateShape(localState || makeInitialState());
-    const remote = restoreStateShape(remoteState || makeInitialState(local.selectedLevel));
-    const selectedLevel = local.selectedLevel || remote.selectedLevel || null;
-    const merged = makeInitialState(selectedLevel);
-
-    merged.lastUpdatedAt = Math.max(Number(local.lastUpdatedAt || 0), Number(remote.lastUpdatedAt || 0), Date.now());
-    merged.selectedLevel = selectedLevel;
-    merged.unlockedLevels = mergeNumberArrays(local.unlockedLevels, remote.unlockedLevels);
-    if (selectedLevel && !merged.unlockedLevels.includes(selectedLevel)) {
-      merged.unlockedLevels.unshift(selectedLevel);
-    }
-    merged.unlockedPackIds = mergeStringArrays(local.unlockedPackIds, remote.unlockedPackIds);
-    if (!merged.unlockedPackIds.includes(INITIAL_UNLOCKED_PACK_ID)) {
-      merged.unlockedPackIds.unshift(INITIAL_UNLOCKED_PACK_ID);
-    }
-
-    merged.progress = mergeProgressMaps(local.progress || {}, remote.progress || {});
-    merged.queue = mergeQueues(local.queue || [], remote.queue || [], merged.progress);
-    merged.turn = Math.max(Number(local.turn || 0), Number(remote.turn || 0));
-    merged.lifetimePoints = Math.max(Number(local.lifetimePoints || 0), Number(remote.lifetimePoints || 0), calculateEarnedPoints({ ...merged, progress: merged.progress }));
-    merged.battlePoints = Math.max(Number(local.battlePoints || 0), Number(remote.battlePoints || 0));
-    merged.correctSpellingsTowardBattlePoint = Math.max(Number(local.correctSpellingsTowardBattlePoint || 0), Number(remote.correctSpellingsTowardBattlePoint || 0));
-    merged.ownedCards = mergeOwnedCards(local.ownedCards || [], remote.ownedCards || []);
-
-    recalculateSpendablePointsFromMergedState(merged);
-    ensureProgressForActiveWords(merged);
-    ensurePackUnlockState(merged);
-    cleanQueue(merged);
-    fillQueueToSize(merged, ACTIVE_WORD_TARGET);
-    return restoreStateShape(merged);
-  }
-
-  function mergeProgressMaps(localProgress, remoteProgress) {
-    const merged = {};
-    const words = new Set([...Object.keys(localProgress || {}), ...Object.keys(remoteProgress || {})]);
-    for (const word of words) {
-      const local = localProgress[word] || {};
-      const remote = remoteProgress[word] || {};
-      const best = chooseBestProgress(local, remote, word);
-      merged[word] = best;
-    }
-    return merged;
-  }
-
-  function chooseBestProgress(a, b, word) {
-    const progress = {
-      ...makeBlankProgress(word),
-      ...a,
-      ...b,
-      word
-    };
-    progress.attempts = Math.max(Number(a.attempts || 0), Number(b.attempts || 0));
-    progress.correctAttempts = Math.max(Number(a.correctAttempts || 0), Number(b.correctAttempts || 0));
-    progress.correctStreak = Math.max(Number(a.correctStreak || 0), Number(b.correctStreak || 0));
-    progress.mastered = Boolean(a.mastered || b.mastered);
-    progress.introduced = Boolean(a.introduced || b.introduced || progress.mastered || progress.attempts > 0);
-    progress.lastAttemptWasWrong = Boolean((Number(a.lastAttemptAt || 0) >= Number(b.lastAttemptAt || 0) ? a : b).lastAttemptWasWrong);
-    progress.lastAttemptAt = Math.max(Number(a.lastAttemptAt || 0), Number(b.lastAttemptAt || 0));
-    progress.masteredAt = Math.max(Number(a.masteredAt || 0), Number(b.masteredAt || 0)) || null;
-    return progress;
-  }
-
-  function mergeOwnedCards(localCards, remoteCards) {
-    const byId = new Map();
-    const pending = [];
-    for (const card of sanitiseOwnedCards([...(localCards || []), ...(remoteCards || [])])) {
-      if (card.id) {
-        const existing = byId.get(card.id);
-        byId.set(card.id, existing ? mergeCardRecord(existing, card) : card);
-      } else {
-        pending.push(card);
-      }
-    }
-
-    const cards = Array.from(byId.values());
-    for (const card of pending) {
-      const duplicate = cards.find((existing) =>
-        !existing._matchedPending &&
-        existing.index === card.index &&
-        (existing.source || "shop") === (card.source || "shop") &&
-        Math.abs(Number(existing.purchasedAt || 0) - Number(card.purchasedAt || 0)) < 10 * 60 * 1000
-      );
-      if (duplicate) {
-        duplicate._matchedPending = true;
-        continue;
-      }
-      cards.push(card);
-    }
-
-    return cards
-      .map(({ _matchedPending, ...card }) => card)
-      .sort((a, b) => Number(a.purchasedAt || 0) - Number(b.purchasedAt || 0));
-  }
-
-  function mergeCardRecord(a, b) {
-    return {
-      ...a,
-      ...b,
-      purchasedAt: Math.min(Number(a.purchasedAt || Date.now()), Number(b.purchasedAt || Date.now())),
-      attackStrength: normaliseBattleAttack(b.attackStrength) || normaliseBattleAttack(a.attackStrength),
-      source: b.source || a.source || "shop"
-    };
-  }
-
-  function recalculateSpendablePointsFromMergedState(targetState) {
-    const shopCost = (targetState.ownedCards || [])
-      .filter((card) => !card.source || card.source === "shop")
-      .reduce((total, card) => total + getCardCost(Number(card.index)), 0);
-    const earned = Math.max(Number(targetState.lifetimePoints || 0), calculateEarnedPoints(targetState));
-    targetState.lifetimePoints = earned;
-    targetState.points = Math.max(0, earned - shopCost);
-  }
-
-  function mergeNumberArrays(a = [], b = []) {
-    return Array.from(new Set([...(a || []), ...(b || [])].map(Number).filter(Number.isFinite))).sort((x, y) => x - y);
-  }
-
-  function mergeStringArrays(a = [], b = []) {
-    return Array.from(new Set([...(a || []), ...(b || [])].filter(Boolean)));
-  }
-
-  function mergeQueues(localQueue, remoteQueue, progress) {
-    const result = [];
-    for (const word of [...(localQueue || []), ...(remoteQueue || [])]) {
-      if (!progress[word] || progress[word].mastered || result.includes(word)) continue;
-      result.push(word);
-    }
-    return result.slice(0, Math.max(ACTIVE_WORD_TARGET, result.length));
   }
 
   function restoreStateShape(savedState) {
@@ -2926,6 +2930,8 @@ function scoreWord(word) {
     const restored = {
       ...makeInitialState(selectedLevel),
       ...savedState,
+      version: 14,
+      lastUpdatedAt: Number.isFinite(Number(savedState.lastUpdatedAt)) ? Number(savedState.lastUpdatedAt) : 0,
       selectedLevel,
       progress: savedState.progress && typeof savedState.progress === "object" ? savedState.progress : {},
       ownedCards: sanitiseOwnedCards(savedState.ownedCards || []),
@@ -2981,7 +2987,7 @@ function scoreWord(word) {
     return error ? null : data;
   }
 
-  async function refreshCardsFromSupabase(options = {}) {
+  async function refreshCardsFromSupabase() {
     if (!supabaseClient || !currentUser) return;
 
     const { data, error } = await supabaseClient
@@ -2995,16 +3001,14 @@ function scoreWord(word) {
       return;
     }
 
-    const remoteCards = sanitiseOwnedCards((data || []).map((card) => ({
+    state.ownedCards = sanitiseOwnedCards((data || []).map((card) => ({
       id: card.id,
       index: card.card_index,
       purchasedAt: new Date(card.purchased_at).getTime() || Date.now(),
       source: card.acquired_from || "shop",
       attackStrength: normaliseBattleAttack(card.attack_strength)
     })));
-
-    state.ownedCards = options.authoritative ? remoteCards : mergeOwnedCards(state.ownedCards || [], remoteCards);
-    recalculateSpendablePointsFromMergedState(state);
+    reconcilePointBalanceFromCards(state);
     ensurePackUnlockState(state);
     saveState();
   }
