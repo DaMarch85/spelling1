@@ -1301,7 +1301,6 @@
   });
 
   const elements = {
-    resetButton: document.querySelector("#resetButton"),
     levelPanel: document.querySelector("#levelPanel"),
     levelGrid: document.querySelector("#levelGrid"),
     levelStatus: document.querySelector("#levelStatus"),
@@ -1410,6 +1409,55 @@
   let battleLobbyTimer = null;
   let adminSelectedUserId = null;
   let adminSnapshotData = null;
+  const pendingCanonicalWritesByUser = new Map();
+  const pendingWordAttemptsByUser = new Map();
+
+  function getCurrentUserId() {
+    return currentUser && currentUser.id ? currentUser.id : null;
+  }
+
+  function isCurrentUserId(userId) {
+    return Boolean(userId && currentUser && currentUser.id === userId);
+  }
+
+  function getStorageKeyForUserId(userId) {
+    return userId ? getUserStorageKey(userId) : getAnonymousStorageKey();
+  }
+
+  function beginCanonicalWrite(userId) {
+    if (!userId) return;
+    pendingCanonicalWritesByUser.set(userId, (pendingCanonicalWritesByUser.get(userId) || 0) + 1);
+  }
+
+  function endCanonicalWrite(userId) {
+    if (!userId) return;
+    const nextCount = Math.max(0, (pendingCanonicalWritesByUser.get(userId) || 0) - 1);
+    if (nextCount === 0) pendingCanonicalWritesByUser.delete(userId);
+    else pendingCanonicalWritesByUser.set(userId, nextCount);
+  }
+
+  function hasPendingCanonicalWrites(userId) {
+    return Boolean(userId && pendingCanonicalWritesByUser.get(userId));
+  }
+
+  function markPendingWordAttempt(userId, word) {
+    if (!userId || !word) return;
+    const words = pendingWordAttemptsByUser.get(userId) || new Set();
+    words.add(word);
+    pendingWordAttemptsByUser.set(userId, words);
+  }
+
+  function clearPendingWordAttempt(userId, word) {
+    const words = userId ? pendingWordAttemptsByUser.get(userId) : null;
+    if (!words) return;
+    words.delete(word);
+    if (words.size === 0) pendingWordAttemptsByUser.delete(userId);
+  }
+
+  function hasPendingWordAttempt(userId, word) {
+    const words = userId ? pendingWordAttemptsByUser.get(userId) : null;
+    return Boolean(words && words.has(word));
+  }
 
   initialise();
 
@@ -1421,9 +1469,6 @@
     elements.revealWordButton.addEventListener("click", revealCurrentWord);
     elements.skipButton.addEventListener("click", skipCurrentWord);
     document.addEventListener("click", handleWrongAnswerDismissClick, true);
-    if (elements.resetButton) {
-      elements.resetButton.addEventListener("click", resetProgress);
-    }
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
     elements.collectionGrid.addEventListener("click", handleCollectionClick);
@@ -1681,8 +1726,8 @@
     clearAutoAdvance();
     saveState();
     if (currentUser) {
-      ensureProfile();
-      saveRemoteProgressNow();
+      void updateProfileStartingLevel(safeLevel);
+      void saveRemoteProgressNow();
     }
     renderLevelSelector();
     selectNextWord();
@@ -1714,6 +1759,7 @@
       lifetimePoints: 0,
       battlePoints: 0,
       correctSpellingsTowardBattlePoint: 0,
+      totalCorrectSpellings: 0,
       ownedCards: [],
       unlockedPackIds: [INITIAL_UNLOCKED_PACK_ID],
       queue: [],
@@ -1759,6 +1805,7 @@
         lifetimePoints: Number.isFinite(parsed.lifetimePoints) ? Math.max(0, parsed.lifetimePoints) : 0,
         battlePoints: Number.isFinite(parsed.battlePoints) ? Math.max(0, parsed.battlePoints) : 0,
         correctSpellingsTowardBattlePoint: Number.isFinite(parsed.correctSpellingsTowardBattlePoint) ? Math.max(0, parsed.correctSpellingsTowardBattlePoint) : 0,
+        totalCorrectSpellings: Number.isFinite(Number(parsed.totalCorrectSpellings)) ? Math.max(0, Number(parsed.totalCorrectSpellings)) : 0,
         ownedCards: Array.isArray(parsed.ownedCards) ? parsed.ownedCards : [],
         unlockedPackIds: Array.isArray(parsed.unlockedPackIds) ? parsed.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID],
         queue: Array.isArray(parsed.queue) ? parsed.queue : [],
@@ -1826,30 +1873,10 @@
     queueRemoteProgressSave();
   }
 
-  async function saveRemoteProgressNow() {
-    if (!supabaseClient || !currentUser) return;
+  async function saveRemoteProgressNow(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
     window.clearTimeout(remoteSaveTimer);
-    await saveRemoteProgress();
-  }
-
-  function resetProgress() {
-    if (!window.confirm("Reset all progress, points, and card purchases?")) {
-      return;
-    }
-
-    state = makeInitialState();
-    currentWord = null;
-    lastPurchasedIndex = null;
-    clearAutoAdvance();
-    clearFeedback();
-    clearShopFlash();
-    saveState();
-    selectNextWord();
-    renderStats();
-    renderShop();
-    renderCollection();
-    renderPacks();
-    renderBattlePanel();
+    await saveRemoteProgress(userId);
   }
 
   function selectNextWord() {
@@ -2060,6 +2087,7 @@
   }
 
   function recordCorrectSpellingForBattlePoints() {
+    state.totalCorrectSpellings = Math.max(0, Number(state.totalCorrectSpellings || 0)) + 1;
     state.correctSpellingsTowardBattlePoint = Number(state.correctSpellingsTowardBattlePoint || 0) + 1;
     const awarded = Math.floor(state.correctSpellingsTowardBattlePoint / BATTLE_POINT_EVERY);
 
@@ -2160,8 +2188,15 @@
     renderDueBadge();
   }
 
-  function getTotalCorrectSpellings() {
+  function getLocalTotalCorrectSpellings() {
     return Object.values(state.progress || {}).reduce((total, progress) => total + Number(progress.correctAttempts || 0), 0);
+  }
+
+  function getTotalCorrectSpellings() {
+    if (currentUser && Number.isFinite(Number(state.totalCorrectSpellings))) {
+      return Math.max(0, Number(state.totalCorrectSpellings));
+    }
+    return getLocalTotalCorrectSpellings();
   }
 
   function getCorrectSpellingsUntilBattlePoint() {
@@ -2402,20 +2437,28 @@ function handleShopClick(event) {
     }
 
     if (supabaseClient && currentUser) {
-      const { data, error } = await supabaseClient.rpc("buy_card", {
-        p_card_index: cardIndex
-      });
+      const userId = getCurrentUserId();
+      beginCanonicalWrite(userId);
+      try {
+        const { data, error } = await supabaseClient.rpc("buy_card", {
+          p_card_index: cardIndex
+        });
 
-      if (error || !data || !data.card) {
-        setShopFlash(`Could not buy that card online. ${error ? error.message : "Please try again."}`, "error");
-        return;
+        if (!isCurrentUserId(userId)) return;
+
+        if (error || !data || !data.card) {
+          setShopFlash(`Could not buy that card online. ${error ? error.message : "Please try again."}`, "error");
+          return;
+        }
+
+        applyCanonicalBalance(data.balance);
+        lastPurchasedIndex = cardIndex;
+        await refreshCardsFromSupabase(userId);
+        await hydratePackUnlocksFromSupabase(userId);
+        await saveRemoteProgressNow(userId);
+      } finally {
+        endCanonicalWrite(userId);
       }
-
-      applyCanonicalBalance(data.balance);
-      lastPurchasedIndex = cardIndex;
-      await refreshCardsFromSupabase();
-      await hydratePackUnlocksFromSupabase();
-      await saveRemoteProgressNow();
     } else {
       const localCard = { index: cardIndex, purchasedAt: Date.now(), source: "shop", attackStrength: null };
       state.ownedCards.push(localCard);
@@ -2557,22 +2600,30 @@ function handleShopClick(event) {
 
     if (!packId || isPackUnlocked(packId)) return;
 
-    const { data, error } = await supabaseClient.rpc("unlock_pack", {
-      p_pack_id: packId
-    });
+    const userId = getCurrentUserId();
+    beginCanonicalWrite(userId);
+    try {
+      const { data, error } = await supabaseClient.rpc("unlock_pack", {
+        p_pack_id: packId
+      });
 
-    if (error || !data || data.ok === false) {
-      const message = error ? error.message : (data && data.message ? data.message : `Buy ${CARDS_PER_PACK_UNLOCK} cards for each new pack unlock. New users get one extra pack unlock free.`);
-      setShopFlash(message, "info");
-      return;
+      if (!isCurrentUserId(userId)) return;
+
+      if (error || !data || data.ok === false) {
+        const message = error ? error.message : (data && data.message ? data.message : `Buy ${CARDS_PER_PACK_UNLOCK} cards for each new pack unlock. New users get one extra pack unlock free.`);
+        setShopFlash(message, "info");
+        return;
+      }
+
+      await hydratePackUnlocksFromSupabase(userId);
+      saveState();
+      renderStats();
+      renderShop();
+      renderPacks();
+      setShopFlash(`Unlocked ${getPackById(packId).name}.`, "success");
+    } finally {
+      endCanonicalWrite(userId);
     }
-
-    await hydratePackUnlocksFromSupabase();
-    saveState();
-    renderStats();
-    renderShop();
-    renderPacks();
-    setShopFlash(`Unlocked ${getPackById(packId).name}.`, "success");
   }
 
   function handlePackClick(event) {
@@ -2817,16 +2868,24 @@ function scoreWord(word) {
 
   async function handleAuthSession(session) {
     currentUser = session && session.user ? session.user : null;
+    const userId = getCurrentUserId();
     renderAuthPanel();
 
     if (currentUser) {
-      await ensureProfile();
-      await loadSignedInCacheState();
-      await ensureCanonicalUserState();
-      await refreshCardsFromSupabase();
-      await hydrateCanonicalStateFromSupabase();
-      await saveRemoteProgressNow();
-      await initialiseAdminPanel();
+      await ensureProfile(userId);
+      if (!isCurrentUserId(userId)) return;
+      await loadSignedInCacheState(userId);
+      if (!isCurrentUserId(userId)) return;
+      await ensureCanonicalUserState(userId);
+      if (!isCurrentUserId(userId)) return;
+      await refreshCardsFromSupabase(userId);
+      if (!isCurrentUserId(userId)) return;
+      await hydrateCanonicalStateFromSupabase(userId);
+      if (!isCurrentUserId(userId)) return;
+      await saveRemoteProgressNow(userId);
+      if (!isCurrentUserId(userId)) return;
+      await initialiseAdminPanel(userId);
+      if (!isCurrentUserId(userId)) return;
       renderLevelSelector();
       renderStats();
       renderShop();
@@ -2834,11 +2893,13 @@ function scoreWord(word) {
       renderPacks();
       renderBattlePanel();
       renderLeaderboards();
-      refreshRecentBattleResults();
-      refreshDebugPanel();
+      refreshRecentBattleResults(userId);
+      refreshDebugPanel(userId);
       renderSaveStatus();
-      renderLevelSelector();
+      selectNextWord();
     } else {
+      pendingCanonicalWritesByUser.clear();
+      pendingWordAttemptsByUser.clear();
       state = loadStateFromKey(getAnonymousStorageKey());
       currentWord = null;
       renderStats();
@@ -2856,45 +2917,54 @@ function scoreWord(word) {
     }
   }
 
-  async function loadSignedInCacheState() {
-    const remoteState = await fetchRemoteProgressState();
-    const startingLevel = await fetchProfileStartingLevel();
+  async function loadSignedInCacheState(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
+
+    const [remoteState, startingLevel] = await Promise.all([
+      fetchRemoteProgressState(userId),
+      fetchProfileStartingLevel(userId)
+    ]);
+
+    if (!isCurrentUserId(userId)) return;
+
     state = remoteState ? restoreStateShape(remoteState) : makeInitialState(startingLevel);
-    if (!state.selectedLevel && startingLevel) {
+    if (startingLevel) {
       state.selectedLevel = startingLevel;
-      state.unlockedLevels = [startingLevel];
+      state.unlockedLevels = unionNumbers(state.unlockedLevels || [], [startingLevel]);
     }
     ensureProgressForActiveWords(state);
     cleanQueue(state);
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     state.lastUpdatedAt = Date.now();
-    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+    window.localStorage.setItem(getStorageKeyForUserId(userId), JSON.stringify(state));
   }
 
-  async function fetchProfileStartingLevel() {
-    if (!supabaseClient || !currentUser) return null;
+  async function fetchProfileStartingLevel(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return null;
     const { data, error } = await supabaseClient
       .from("profiles")
       .select("starting_level")
-      .eq("user_id", currentUser.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
-    if (error || !data || !Number.isInteger(Number(data.starting_level))) {
+    if (!isCurrentUserId(userId) || error || !data || !Number.isInteger(Number(data.starting_level))) {
       return null;
     }
 
     return clamp(Number(data.starting_level), MIN_LEVEL, MAX_LEVEL);
   }
 
-  async function fetchRemoteProgressState() {
-    if (!supabaseClient || !currentUser) return null;
+  async function fetchRemoteProgressState(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return null;
 
     const { data, error } = await supabaseClient
       .from("user_progress")
       .select("state")
-      .eq("user_id", currentUser.id)
+      .eq("user_id", userId)
       .eq("mode", "graded")
       .maybeSingle();
+
+    if (!isCurrentUserId(userId)) return null;
 
     if (error) {
       elements.authStatus.textContent = `Could not load saved progress: ${error.message}`;
@@ -2904,11 +2974,11 @@ function scoreWord(word) {
     return data && data.state ? restoreStateShape(data.state) : null;
   }
 
-  async function ensureCanonicalUserState() {
-    if (!supabaseClient || !currentUser) return;
+  async function ensureCanonicalUserState(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
     const { error } = await supabaseClient.rpc("ensure_user_game_state");
-    if (error) {
+    if (isCurrentUserId(userId) && error) {
       elements.authStatus.textContent = `Could not prepare online save tables: ${error.message}`;
     }
   }
@@ -2917,90 +2987,143 @@ function scoreWord(word) {
     // Disabled: signing in must never copy browser-local progress into Supabase.
   }
 
-  async function hydrateCanonicalStateFromSupabase() {
-    if (!supabaseClient || !currentUser) return;
+  async function hydrateCanonicalStateFromSupabase(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
-    await hydrateBalanceFromSupabase();
-    await hydrateWordProgressFromSupabase();
-    await hydratePackUnlocksFromSupabase();
+    await hydrateBalanceFromSupabase(userId);
+    if (!isCurrentUserId(userId)) return;
+    await hydrateWordProgressFromSupabase(userId);
+    if (!isCurrentUserId(userId)) return;
+    await hydratePackUnlocksFromSupabase(userId);
+    if (!isCurrentUserId(userId)) return;
 
     ensureProgressForActiveWords(state);
     cleanQueue(state);
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     state.lastUpdatedAt = Date.now();
-    window.localStorage.setItem(getStorageKey(), JSON.stringify(state));
+    window.localStorage.setItem(getStorageKeyForUserId(userId), JSON.stringify(state));
   }
 
-  async function hydrateBalanceFromSupabase() {
+  async function hydrateBalanceFromSupabase(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
+
     const { data, error } = await supabaseClient
       .from("user_balances")
       .select("shop_points,lifetime_points,battle_points,correct_spellings_toward_battle_point,total_correct_spellings")
-      .eq("user_id", currentUser.id)
+      .eq("user_id", userId)
       .maybeSingle();
 
-    if (error || !data) return;
-    applyCanonicalBalance(data);
+    if (!isCurrentUserId(userId) || error || !data) return;
+    applyCanonicalBalance(data, { preserveLocalIfPending: hasPendingCanonicalWrites(userId) });
   }
 
-  async function hydrateWordProgressFromSupabase() {
+  function progressFromWordProgressRow(row) {
+    const word = String(row.word || "").trim().toLowerCase();
+    const masteredAt = row.mastered_at ? new Date(row.mastered_at).getTime() : null;
+    const lastAttemptAt = row.last_attempt_at ? new Date(row.last_attempt_at).getTime() : null;
+    const mastered = Boolean(row.mastered);
+
+    return {
+      ...makeBlankProgress(word),
+      word,
+      attempts: Math.max(0, Number(row.attempts || 0)),
+      correctAttempts: Math.max(0, Number(row.correct_attempts || 0)),
+      correctStreak: mastered ? MASTERY_STREAK : Math.max(0, Number(row.correct_streak || 0)),
+      introduced: Boolean(row.introduced || mastered || Number(row.attempts || 0) > 0),
+      mastered,
+      masteredAt: Number.isFinite(masteredAt) && masteredAt > 0 ? masteredAt : null,
+      lastAttemptAt: Number.isFinite(lastAttemptAt) && lastAttemptAt > 0 ? lastAttemptAt : null,
+      lastAttemptWasWrong: Boolean(row.last_attempt_was_wrong && !mastered)
+    };
+  }
+
+  function shouldKeepPendingLocalProgress(userId, word, remoteProgress) {
+    if (!hasPendingWordAttempt(userId, word)) return false;
+    const localProgress = state.progress && state.progress[word];
+    if (!localProgress) return false;
+
+    const localTime = Number(localProgress.lastAttemptAt || localProgress.masteredAt || 0);
+    const remoteTime = Number(remoteProgress && (remoteProgress.lastAttemptAt || remoteProgress.masteredAt) || 0);
+    return localTime > remoteTime;
+  }
+
+  async function hydrateWordProgressFromSupabase(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
+
     const { data, error } = await supabaseClient
       .from("user_word_progress")
       .select("word,level,attempts,correct_attempts,correct_streak,introduced,mastered,mastered_at,last_attempt_at,last_attempt_was_wrong")
-      .eq("user_id", currentUser.id);
+      .eq("user_id", userId);
 
-    if (error || !Array.isArray(data)) return;
+    if (!isCurrentUserId(userId) || error || !Array.isArray(data)) return;
+
+    const nextProgress = {};
+    const seenWords = new Set();
 
     for (const row of data) {
       const word = String(row.word || "").trim().toLowerCase();
       if (!word) continue;
 
-      const existing = state.progress[word] || makeBlankProgress(word);
-      const mastered = Boolean(existing.mastered || row.mastered);
-      state.progress[word] = {
-        ...makeBlankProgress(word),
-        ...existing,
-        word,
-        attempts: Math.max(Number(existing.attempts || 0), Number(row.attempts || 0)),
-        correctAttempts: Math.max(Number(existing.correctAttempts || 0), Number(row.correct_attempts || 0)),
-        correctStreak: mastered ? MASTERY_STREAK : Math.max(Number(existing.correctStreak || 0), Number(row.correct_streak || 0)),
-        introduced: Boolean(existing.introduced || row.introduced || mastered),
-        mastered,
-        masteredAt: chooseEarliestTruthy(existing.masteredAt, row.mastered_at ? new Date(row.mastered_at).getTime() : null),
-        lastAttemptAt: Math.max(Number(existing.lastAttemptAt || 0), row.last_attempt_at ? new Date(row.last_attempt_at).getTime() : 0) || null,
-        lastAttemptWasWrong: Boolean(row.last_attempt_was_wrong && !mastered)
-      };
+      const remoteProgress = progressFromWordProgressRow(row);
+      seenWords.add(word);
+      nextProgress[word] = shouldKeepPendingLocalProgress(userId, word, remoteProgress)
+        ? mergeWordProgress({ [word]: state.progress[word] }, { [word]: remoteProgress })[word]
+        : remoteProgress;
     }
+
+    const pendingWords = pendingWordAttemptsByUser.get(userId);
+    if (pendingWords) {
+      for (const word of pendingWords) {
+        if (!seenWords.has(word) && state.progress && state.progress[word]) {
+          nextProgress[word] = { ...makeBlankProgress(word), ...state.progress[word], word };
+        }
+      }
+    }
+
+    state.progress = nextProgress;
   }
 
-  async function hydratePackUnlocksFromSupabase() {
+  async function hydratePackUnlocksFromSupabase(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
+
     const { data, error } = await supabaseClient
       .from("user_pack_unlocks")
       .select("pack_id")
-      .eq("user_id", currentUser.id);
+      .eq("user_id", userId);
 
-    if (error || !Array.isArray(data)) return;
+    if (!isCurrentUserId(userId) || error || !Array.isArray(data)) return;
 
     const packs = data.map((row) => row.pack_id).filter(Boolean);
-    state.unlockedPackIds = unionStrings(state.unlockedPackIds || [], packs, [INITIAL_UNLOCKED_PACK_ID]);
+    state.unlockedPackIds = unionStrings(packs, [INITIAL_UNLOCKED_PACK_ID]);
     ensurePackUnlockState(state);
   }
 
-  function applyCanonicalBalance(balance) {
+  function applyCanonicalBalance(balance, options = {}) {
     if (!balance) return;
 
-    state.points = Math.max(0, Number(balance.shop_points || 0));
-    state.lifetimePoints = Math.max(Number(state.lifetimePoints || 0), Number(balance.lifetime_points || 0));
-    state.battlePoints = Math.max(0, Number(balance.battle_points || 0));
-    state.correctSpellingsTowardBattlePoint = Math.max(0, Number(balance.correct_spellings_toward_battle_point || 0));
-    state.totalCorrectSpellings = Math.max(Number(state.totalCorrectSpellings || 0), Number(balance.total_correct_spellings || 0));
+    const preserveLocalIfPending = Boolean(options.preserveLocalIfPending);
+    const hasField = (fieldName) => Object.prototype.hasOwnProperty.call(balance, fieldName);
+    const nextValue = (fieldName, currentValue) => {
+      if (!hasField(fieldName)) return Math.max(0, Number(currentValue || 0));
+      const remoteNumber = Math.max(0, Number(balance[fieldName] || 0));
+      return preserveLocalIfPending ? Math.max(Math.max(0, Number(currentValue || 0)), remoteNumber) : remoteNumber;
+    };
+
+    state.points = nextValue("shop_points", state.points);
+    state.lifetimePoints = nextValue("lifetime_points", state.lifetimePoints);
+    state.battlePoints = nextValue("battle_points", state.battlePoints);
+    state.correctSpellingsTowardBattlePoint = nextValue("correct_spellings_toward_battle_point", state.correctSpellingsTowardBattlePoint);
+    state.totalCorrectSpellings = nextValue("total_correct_spellings", state.totalCorrectSpellings);
   }
 
   async function persistWordAttemptToSupabase(progress, wasCorrect, earnedPoints) {
-    if (!supabaseClient || !currentUser || !progress || !progress.word) return;
+    const userId = getCurrentUserId();
+    if (!supabaseClient || !isCurrentUserId(userId) || !progress || !progress.word) return;
 
-    const entry = getEntryForWord(progress.word);
+    const word = String(progress.word || "").trim().toLowerCase();
+    const entry = getEntryForWord(word);
     const payload = {
-      p_word: progress.word,
+      p_word: word,
       p_level: entry ? entry.level : state.selectedLevel,
       p_attempts: Number(progress.attempts || 0),
       p_correct_attempts: Number(progress.correctAttempts || 0),
@@ -3015,11 +3138,21 @@ function scoreWord(word) {
     const rpcName = wasCorrect ? "record_correct_spelling" : "record_incorrect_spelling";
     const rpcPayload = wasCorrect ? { ...payload, p_word_points: Number(earnedPoints || 0) } : payload;
 
-    const { data, error } = await supabaseClient.rpc(rpcName, rpcPayload);
-    if (!error && data && data.balance) {
-      applyCanonicalBalance(data.balance);
-      saveState();
-      renderStats();
+    beginCanonicalWrite(userId);
+    markPendingWordAttempt(userId, word);
+    try {
+      const { data, error } = await supabaseClient.rpc(rpcName, rpcPayload);
+      if (!isCurrentUserId(userId)) return;
+
+      if (!error && data && data.balance) {
+        applyCanonicalBalance(data.balance);
+        await hydrateWordProgressFromSupabase(userId);
+        saveState();
+        renderStats();
+      }
+    } finally {
+      clearPendingWordAttempt(userId, word);
+      endCanonicalWrite(userId);
     }
   }
 
@@ -3188,8 +3321,15 @@ function scoreWord(word) {
 
   async function signOutUser() {
     if (!supabaseClient) return;
+    const userId = getCurrentUserId();
+    if (userId) {
+      await saveRemoteProgressNow(userId);
+    }
+    window.clearTimeout(remoteSaveTimer);
     stopBattlePolling();
     await supabaseClient.auth.signOut();
+    pendingCanonicalWritesByUser.clear();
+    pendingWordAttemptsByUser.clear();
     currentUser = null;
     state = loadStateFromKey(getAnonymousStorageKey());
     currentWord = null;
@@ -3203,26 +3343,47 @@ function scoreWord(word) {
     renderPacks();
   }
 
-  async function ensureProfile() {
-    if (!supabaseClient || !currentUser) return;
+  async function ensureProfile(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
+    const username = getCurrentUsername();
+    const email = currentUser.email || null;
     await supabaseClient
       .from("profiles")
       .upsert({
-        user_id: currentUser.id,
-        email: currentUser.email || null,
-        display_name: getCurrentUsername(),
-        username: getCurrentUsername(),
-        starting_level: state.selectedLevel || null,
+        user_id: userId,
+        email,
+        display_name: username,
+        username,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "user_id" });
+  }
+
+  async function updateProfileStartingLevel(level, userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
+    const safeLevel = Number.isInteger(Number(level)) ? clamp(Number(level), MIN_LEVEL, MAX_LEVEL) : null;
+    if (!safeLevel) return;
+
+    const username = getCurrentUsername();
+    const email = currentUser.email || null;
+    await supabaseClient
+      .from("profiles")
+      .upsert({
+        user_id: userId,
+        email,
+        display_name: username,
+        username,
+        starting_level: safeLevel,
         updated_at: new Date().toISOString()
       }, { onConflict: "user_id" });
   }
 
   function queueRemoteProgressSave() {
-    if (!supabaseClient || !currentUser) return;
+    const userId = getCurrentUserId();
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
     window.clearTimeout(remoteSaveTimer);
-    remoteSaveTimer = window.setTimeout(saveRemoteProgress, 700);
+    remoteSaveTimer = window.setTimeout(() => saveRemoteProgress(userId), 700);
   }
 
   function makeRemoteCacheState() {
@@ -3239,37 +3400,43 @@ function scoreWord(word) {
     };
   }
 
-  async function saveRemoteProgress() {
-    if (!supabaseClient || !currentUser) return;
+  async function saveRemoteProgress(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
+    const cacheState = makeRemoteCacheState();
     setSaveStatus("Online save: saving…", "warn");
     const { error } = await supabaseClient
       .from("user_progress")
       .upsert({
-        user_id: currentUser.id,
+        user_id: userId,
         mode: "graded",
-        state: makeRemoteCacheState(),
+        state: cacheState,
         updated_at: new Date().toISOString()
       }, { onConflict: "user_id,mode" });
+
+    if (!isCurrentUserId(userId)) return;
 
     if (!error) {
       setSaveStatus(`Online save: saved ${new Date().toLocaleTimeString()}`, "ok");
       renderLeaderboards();
-      refreshDebugPanel();
+      refreshDebugPanel(userId);
     } else {
       setSaveStatus(`Online save error: ${error.message}`, "error");
     }
   }
 
-  async function loadRemoteProgress() {
-    if (!supabaseClient || !currentUser) return;
+  async function loadRemoteProgress(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
-    const remoteState = await fetchRemoteProgressState();
+    const remoteState = await fetchRemoteProgressState(userId);
+    if (!isCurrentUserId(userId)) return;
+
     if (remoteState) {
-      state = mergeProgressStates(state, remoteState);
-      saveState();
+      state = restoreStateShape(remoteState);
+      await hydrateCanonicalStateFromSupabase(userId);
+      if (isCurrentUserId(userId)) saveState();
     } else {
-      await saveRemoteProgress();
+      await saveRemoteProgress(userId);
     }
   }
 
@@ -3281,6 +3448,7 @@ function scoreWord(word) {
       version: 14,
       lastUpdatedAt: Number.isFinite(Number(savedState.lastUpdatedAt)) ? Number(savedState.lastUpdatedAt) : 0,
       selectedLevel,
+      totalCorrectSpellings: Number.isFinite(Number(savedState.totalCorrectSpellings)) ? Math.max(0, Number(savedState.totalCorrectSpellings)) : 0,
       progress: savedState.progress && typeof savedState.progress === "object" ? savedState.progress : {},
       ownedCards: sanitiseOwnedCards(savedState.ownedCards || []),
       unlockedPackIds: Array.isArray(savedState.unlockedPackIds) ? savedState.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID],
@@ -3308,13 +3476,13 @@ function scoreWord(word) {
     return restored;
   }
 
-  async function upsertUserCard(cardIndex, source = "shop") {
-    if (!supabaseClient || !currentUser) return null;
+  async function upsertUserCard(cardIndex, source = "shop", userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return null;
 
     const { data, error } = await supabaseClient
       .from("user_cards")
       .insert({
-        user_id: currentUser.id,
+        user_id: userId,
         card_index: cardIndex,
         purchased_at: new Date().toISOString(),
         acquired_from: source,
@@ -3323,10 +3491,12 @@ function scoreWord(word) {
       .select()
       .single();
 
+    if (!isCurrentUserId(userId)) return null;
+
     if (!error && data && data.id) {
       await supabaseClient.from("card_history").insert({
         card_instance_id: data.id,
-        user_id: currentUser.id,
+        user_id: userId,
         action: source === "battle_win" ? "battle_win" : "shop_purchase",
         created_at: data.purchased_at || new Date().toISOString()
       });
@@ -3339,14 +3509,16 @@ function scoreWord(word) {
     // Disabled: signed-in users now load card ownership from Supabase only.
   }
 
-  async function refreshCardsFromSupabase() {
-    if (!supabaseClient || !currentUser) return;
+  async function refreshCardsFromSupabase(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
     const { data, error } = await supabaseClient
       .from("user_cards")
       .select("id,card_index,purchased_at,acquired_from,attack_strength")
-      .eq("user_id", currentUser.id)
+      .eq("user_id", userId)
       .order("purchased_at", { ascending: true });
+
+    if (!isCurrentUserId(userId)) return;
 
     if (error) {
       elements.authStatus.textContent = `Could not load cards: ${error.message}`;
@@ -3361,7 +3533,8 @@ function scoreWord(word) {
       attackStrength: normaliseBattleAttack(card.attack_strength)
     })));
 
-    await hydrateBalanceFromSupabase();
+    await hydrateBalanceFromSupabase(userId);
+    if (!isCurrentUserId(userId)) return;
     ensurePackUnlockState(state);
     saveState();
   }
@@ -3387,10 +3560,10 @@ function scoreWord(word) {
     }
   }
 
-  async function refreshBattleLobbyCount() {
+  async function refreshBattleLobbyCount(userId = getCurrentUserId()) {
     if (!elements.battleQueueCount) return;
 
-    if (!supabaseClient || !currentUser) {
+    if (!supabaseClient || !isCurrentUserId(userId)) {
       elements.battleQueueCount.textContent = "Sign in to see the arena queue.";
       return;
     }
@@ -3399,8 +3572,10 @@ function scoreWord(word) {
       .from("battle_rooms")
       .select("id", { count: "exact", head: true })
       .eq("status", "waiting")
-      .neq("challenger_id", currentUser.id)
+      .neq("challenger_id", userId)
       .gte("heartbeat_at", getBattleHeartbeatCutoffIso());
+
+    if (!isCurrentUserId(userId)) return;
 
     if (error) {
       elements.battleQueueCount.textContent = "Arena queue loading…";
@@ -3417,7 +3592,7 @@ function scoreWord(word) {
     if (battleLobbyTimer) {
       window.clearInterval(battleLobbyTimer);
     }
-    battleLobbyTimer = window.setInterval(refreshBattleLobbyCount, BATTLE_LOBBY_REFRESH_MS);
+    battleLobbyTimer = window.setInterval(() => refreshBattleLobbyCount(getCurrentUserId()), BATTLE_LOBBY_REFRESH_MS);
   }
 
   async function sendBattleHeartbeat() {
@@ -3971,7 +4146,7 @@ function scoreWord(word) {
     return item;
   }
 
-  async function refreshDebugPanel() {
+  async function refreshDebugPanel(userId = getCurrentUserId()) {
     if (!elements.debugGrid) {
       return;
     }
@@ -3979,11 +4154,13 @@ function scoreWord(word) {
     const localSnapshot = getLocalDebugSnapshot();
     let remoteSnapshot = {};
 
-    if (supabaseClient && currentUser) {
-      remoteSnapshot = await getRemoteDebugSnapshot();
+    if (supabaseClient && isCurrentUserId(userId)) {
+      remoteSnapshot = await getRemoteDebugSnapshot(userId);
     }
 
-    renderDebugPanel(localSnapshot, remoteSnapshot);
+    if (!userId || isCurrentUserId(userId)) {
+      renderDebugPanel(localSnapshot, remoteSnapshot);
+    }
   }
 
   function getLocalDebugSnapshot() {
@@ -4008,14 +4185,17 @@ function scoreWord(word) {
     };
   }
 
-  async function getRemoteDebugSnapshot() {
+  async function getRemoteDebugSnapshot(userId = getCurrentUserId()) {
     const snapshot = {};
+    if (!supabaseClient || !isCurrentUserId(userId)) return snapshot;
 
     const { data: balance } = await supabaseClient
       .from("user_balances")
       .select("shop_points,lifetime_points,battle_points,total_correct_spellings,correct_spellings_toward_battle_point,updated_at")
-      .eq("user_id", currentUser.id)
+      .eq("user_id", userId)
       .maybeSingle();
+
+    if (!isCurrentUserId(userId)) return snapshot;
 
     if (balance) {
       snapshot["DB shop points"] = balance.shop_points;
@@ -4026,12 +4206,14 @@ function scoreWord(word) {
       snapshot["DB balance updated"] = balance.updated_at ? new Date(balance.updated_at).toLocaleString() : "unknown";
     }
 
-    const wordCount = await countRows("user_word_progress", "user_id", currentUser.id);
-    const masteredCount = await countRows("user_word_progress", "user_id", currentUser.id, { column: "mastered", value: true });
-    const cardCount = await countRows("user_cards", "user_id", currentUser.id);
-    const packCount = await countRows("user_pack_unlocks", "user_id", currentUser.id);
-    const historyCount = await countRows("card_history", "user_id", currentUser.id);
-    const battleCount = await countBattleRowsForCurrentUser();
+    const wordCount = await countRows("user_word_progress", "user_id", userId);
+    const masteredCount = await countRows("user_word_progress", "user_id", userId, { column: "mastered", value: true });
+    const cardCount = await countRows("user_cards", "user_id", userId);
+    const packCount = await countRows("user_pack_unlocks", "user_id", userId);
+    const historyCount = await countRows("card_history", "user_id", userId);
+    const battleCount = await countBattleRowsForCurrentUser(userId);
+
+    if (!isCurrentUserId(userId)) return snapshot;
 
     snapshot["DB word rows"] = wordCount;
     snapshot["DB mastered rows"] = masteredCount;
@@ -4058,11 +4240,13 @@ function scoreWord(word) {
   }
 
 
-  async function countBattleRowsForCurrentUser() {
+  async function countBattleRowsForCurrentUser(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return "error";
+
     const { count, error } = await supabaseClient
       .from("battle_rooms")
       .select("*", { count: "exact", head: true })
-      .or(`challenger_id.eq.${currentUser.id},opponent_id.eq.${currentUser.id}`);
+      .or(`challenger_id.eq.${userId},opponent_id.eq.${userId}`);
 
     return error ? "error" : Number(count || 0);
   }
@@ -4087,12 +4271,14 @@ function scoreWord(word) {
       .join("");
   }
 
-  async function initialiseAdminPanel() {
-    if (!elements.adminPanel || !supabaseClient || !currentUser) {
+  async function initialiseAdminPanel(userId = getCurrentUserId()) {
+    if (!elements.adminPanel || !supabaseClient || !isCurrentUserId(userId)) {
       return;
     }
 
     const { data, error } = await supabaseClient.rpc("admin_search_users", { p_query: "" });
+    if (!isCurrentUserId(userId)) return;
+
     if (error) {
       hideAdminPanel();
       return;
@@ -4111,6 +4297,31 @@ function scoreWord(word) {
     }
     adminSelectedUserId = null;
     adminSnapshotData = null;
+  }
+
+  async function refreshCurrentUserAfterAdminChange(affectedUserId) {
+    if (!affectedUserId || !isCurrentUserId(affectedUserId)) return;
+
+    const startingLevel = await fetchProfileStartingLevel(affectedUserId);
+    if (!isCurrentUserId(affectedUserId)) return;
+
+    if (startingLevel) {
+      state.selectedLevel = startingLevel;
+      state.unlockedLevels = unionNumbers(state.unlockedLevels || [], [startingLevel]);
+    }
+
+    await hydrateCanonicalStateFromSupabase(affectedUserId);
+    await refreshCardsFromSupabase(affectedUserId);
+    if (!isCurrentUserId(affectedUserId)) return;
+
+    renderLevelSelector();
+    selectNextWord();
+    renderStats();
+    renderShop();
+    renderCollection();
+    renderPacks();
+    renderBattlePanel();
+    refreshDebugPanel(affectedUserId);
   }
 
   async function adminSearchUsers() {
@@ -4254,6 +4465,7 @@ function scoreWord(word) {
 
     await adminSetSelectedLevel(false);
     await adminLoadUser(adminSelectedUserId);
+    await refreshCurrentUserAfterAdminChange(adminSelectedUserId);
     elements.adminStatus.textContent = "Balance saved.";
   }
 
@@ -4286,6 +4498,7 @@ function scoreWord(word) {
     }
 
     await adminLoadUser(adminSelectedUserId);
+    await refreshCurrentUserAfterAdminChange(adminSelectedUserId);
     elements.adminStatus.textContent = "Pack unlocks saved.";
   }
 
@@ -4303,6 +4516,7 @@ function scoreWord(word) {
     }
 
     await adminLoadUser(adminSelectedUserId);
+    await refreshCurrentUserAfterAdminChange(adminSelectedUserId);
     elements.adminStatus.textContent = "Card added.";
   }
 
@@ -4321,6 +4535,7 @@ function scoreWord(word) {
     }
 
     await adminLoadUser(adminSelectedUserId);
+    await refreshCurrentUserAfterAdminChange(adminSelectedUserId);
     elements.adminStatus.textContent = "Card removed.";
   }
 
@@ -4345,6 +4560,7 @@ function scoreWord(word) {
     }
 
     await adminLoadUser(adminSelectedUserId);
+    await refreshCurrentUserAfterAdminChange(adminSelectedUserId);
     elements.adminStatus.textContent = mastered ? "Words marked mastered." : "Words marked not mastered.";
   }
 
@@ -4362,6 +4578,7 @@ function scoreWord(word) {
     }
 
     await adminLoadUser(adminSelectedUserId);
+    await refreshCurrentUserAfterAdminChange(adminSelectedUserId);
     elements.adminStatus.textContent = "Word progress reset.";
   }
 
