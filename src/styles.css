@@ -1574,3 +1574,153 @@ body.is-battle-waiting .battle-card::before {
     grid-template-columns: 1fr;
   }
 }
+
+/* UI formatting and sorting controls update */
+.site-header {
+  align-items: center;
+  gap: 2rem;
+}
+
+.site-header__copy {
+  flex: 1 1 46rem;
+  min-width: 0;
+}
+
+.site-header h1 {
+  white-space: nowrap;
+  font-size: clamp(2.45rem, 4.8vw, 4rem);
+}
+
+.header-actions.auth-card--compact {
+  flex: 0 1 34rem;
+}
+
+.auth-card--compact {
+  grid-template-columns: minmax(7.5rem, 1fr) minmax(7.5rem, 1fr) auto auto;
+}
+
+.auth-card--compact.is-signed-in {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: min(100%, 24rem);
+}
+
+.auth-card--compact.is-signed-in #authStatus {
+  grid-column: auto;
+  margin: 0;
+  color: #fff1db;
+  font-weight: 900;
+}
+
+.auth-card--compact.is-signed-in #signOutButton {
+  justify-self: end;
+}
+
+.level-tile {
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.level-tile:hover,
+.level-tile:focus-visible {
+  border-color: rgba(255, 214, 163, 0.78);
+  box-shadow: 0 0 0 3px rgba(255, 214, 163, 0.15) inset;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.level-tile.is-selected {
+  border-color: #52d48c;
+  box-shadow: 0 0 0 3px rgba(82, 212, 140, 0.42) inset, 0 0 0 1px rgba(82, 212, 140, 0.48);
+  background: rgba(82, 212, 140, 0.1);
+}
+
+.level-tile__mastery {
+  min-height: 0 !important;
+  margin: 0 0 0.6rem;
+  color: #b8ffd1 !important;
+  font-weight: 900;
+}
+
+.card-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin: -0.35rem 0 0.85rem;
+}
+
+.card-toolbar label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.card-toolbar select {
+  min-width: min(100%, 18rem);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  padding: 0.65rem 0.8rem;
+  font-weight: 900;
+}
+
+.leaderboard-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+select,
+.voice-control select,
+.battle-controls select,
+.mode-control select,
+.card-toolbar select,
+.admin-search-row select,
+.admin-card-add-row select {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+@media (max-width: 980px) {
+  .leaderboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .site-header {
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .site-header h1 {
+    white-space: normal;
+  }
+
+  .header-actions.auth-card--compact {
+    flex-basis: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-card--compact,
+  .auth-card--compact.is-signed-in {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-card--compact.is-signed-in #signOutButton {
+    justify-self: stretch;
+  }
+
+  .card-toolbar {
+    align-items: stretch;
+    justify-content: flex-start;
+    flex-direction: column;
+  }
+
+  .card-toolbar select {
+    width: 100%;
+  }
+}

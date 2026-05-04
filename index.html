@@ -9,15 +9,14 @@
   </head>
   <body>
     <header class="site-header">
-      <div>
-        <p class="eyebrow">Spelling · Cards · Battles</p>
+      <div class="site-header__copy">
         <h1>Spelling Battle Cards</h1>
         <p class="lede">Spell words, earn points, buy cards, unlock packs, and battle other players.</p>
       </div>
       <div class="header-actions auth-card auth-card--compact" id="authPanel" aria-label="Account">
-        <label for="authEmail">Username</label>
+        <label class="sr-only" for="authEmail">Username</label>
         <input id="authEmail" type="text" autocomplete="username" placeholder="username" />
-        <label for="authPassword">Password</label>
+        <label class="sr-only" for="authPassword">Password</label>
         <input id="authPassword" type="text" autocomplete="current-password" placeholder="password" />
         <button class="primary-button" id="signInButton" type="button">Log in</button>
         <button class="secondary-button" id="signUpButton" type="button">Create account</button>
@@ -29,7 +28,7 @@
     <section class="level-card" id="levelPanel" aria-labelledby="levelTitle">
       <div class="game-card__topline">
         <div>
-          <h2 id="levelTitle">Choose your starting level</h2>
+          <h2 id="levelTitle">Choose your spelling level</h2>
           <p class="small-note" id="levelStatus">Pick the level that feels right.</p>
         </div>
         <button class="secondary-button level-toggle-button" id="levelToggleButton" type="button">Hide levels</button>
@@ -134,7 +133,7 @@
 
 
 
-      <section class="debug-card" aria-labelledby="debugTitle">
+      <section class="debug-card" id="debugPanel" aria-labelledby="debugTitle" hidden>
         <details>
           <summary>
             <span id="debugTitle">Admin/debug</span>
@@ -229,6 +228,12 @@
               <li>Loading…</li>
             </ol>
           </article>
+          <article class="leaderboard-panel">
+            <h3>Battles won</h3>
+            <ol id="battleWinsLeaderboard" class="leaderboard-list">
+              <li>Loading…</li>
+            </ol>
+          </article>
         </div>
       </section>
 
@@ -245,6 +250,14 @@
           <h2 id="shopTitle">Card shop</h2>
           <span class="pill" id="shopStatusBadge">0 available</span>
         </div>
+        <div class="card-toolbar">
+          <label for="shopSortSelect">Sort shop</label>
+          <select id="shopSortSelect">
+            <option value="pack">Pack</option>
+            <option value="cost-asc">Points cost: low to high</option>
+            <option value="cost-desc">Points cost: high to low</option>
+          </select>
+        </div>
         <p class="small-note" id="shopMessage">Buy cards to unlock packs.</p>
         <div class="feedback" id="shopFlash" aria-live="polite"></div>
         <div class="card-grid" id="shopGrid"></div>
@@ -254,6 +267,15 @@
         <div class="game-card__topline">
           <h2 id="albumTitle">Collection</h2>
           <span class="pill" id="collectionBadge">No cards yet</span>
+        </div>
+        <div class="card-toolbar">
+          <label for="collectionSortSelect">Sort collection</label>
+          <select id="collectionSortSelect">
+            <option value="recent">Most recent</option>
+            <option value="pack">Pack</option>
+            <option value="attack-desc">Battle Arena Attack: high to low</option>
+            <option value="attack-asc">Battle Arena Attack: low to high</option>
+          </select>
         </div>
         <div class="card-grid" id="collectionGrid"></div>
       </section>

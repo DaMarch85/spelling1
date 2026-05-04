@@ -1336,8 +1336,10 @@
     shopStatusBadge: document.querySelector("#shopStatusBadge"),
     shopMessage: document.querySelector("#shopMessage"),
     shopFlash: document.querySelector("#shopFlash"),
+    shopSortSelect: document.querySelector("#shopSortSelect"),
     shopGrid: document.querySelector("#shopGrid"),
     collectionBadge: document.querySelector("#collectionBadge"),
+    collectionSortSelect: document.querySelector("#collectionSortSelect"),
     collectionGrid: document.querySelector("#collectionGrid"),
     shopCardTemplate: document.querySelector("#shopCardTemplate"),
     collectionCardTemplate: document.querySelector("#collectionCardTemplate"),
@@ -1360,6 +1362,7 @@
     battleResult: document.querySelector("#battleResult"),
     pointsLeaderboard: document.querySelector("#pointsLeaderboard"),
     masteredLeaderboard: document.querySelector("#masteredLeaderboard"),
+    battleWinsLeaderboard: document.querySelector("#battleWinsLeaderboard"),
     battleQueueCount: document.querySelector("#battleQueueCount"),
     cancelBattleButton: document.querySelector("#cancelBattleButton"),
     adminPanel: document.querySelector("#adminPanel"),
@@ -1386,6 +1389,7 @@
     adminMasterWordsButton: document.querySelector("#adminMasterWordsButton"),
     adminUnmasterWordsButton: document.querySelector("#adminUnmasterWordsButton"),
     adminResetWordProgressButton: document.querySelector("#adminResetWordProgressButton"),
+    debugPanel: document.querySelector("#debugPanel"),
     debugGrid: document.querySelector("#debugGrid"),
     debugRefreshButton: document.querySelector("#debugRefreshButton"),
     saveStatus: document.querySelector("#saveStatus"),
@@ -1409,6 +1413,7 @@
   let battleLobbyTimer = null;
   let adminSelectedUserId = null;
   let adminSnapshotData = null;
+  let levelMasteryCountsByLevel = new Map();
   const pendingCanonicalWritesByUser = new Map();
   const pendingWordAttemptsByUser = new Map();
 
@@ -1432,8 +1437,11 @@
   function endCanonicalWrite(userId) {
     if (!userId) return;
     const nextCount = Math.max(0, (pendingCanonicalWritesByUser.get(userId) || 0) - 1);
-    if (nextCount === 0) pendingCanonicalWritesByUser.delete(userId);
-    else pendingCanonicalWritesByUser.set(userId, nextCount);
+    if (nextCount === 0) {
+      pendingCanonicalWritesByUser.delete(userId);
+    } else {
+      pendingCanonicalWritesByUser.set(userId, nextCount);
+    }
   }
 
   function hasPendingCanonicalWrites(userId) {
@@ -1451,7 +1459,9 @@
     const words = userId ? pendingWordAttemptsByUser.get(userId) : null;
     if (!words) return;
     words.delete(word);
-    if (words.size === 0) pendingWordAttemptsByUser.delete(userId);
+    if (words.size === 0) {
+      pendingWordAttemptsByUser.delete(userId);
+    }
   }
 
   function hasPendingWordAttempt(userId, word) {
@@ -1472,7 +1482,14 @@
     elements.refreshButton.addEventListener("click", selectNextWord);
     elements.shopGrid.addEventListener("click", handleShopClick);
     elements.collectionGrid.addEventListener("click", handleCollectionClick);
+    if (elements.shopSortSelect) {
+      elements.shopSortSelect.addEventListener("change", renderShop);
+    }
+    if (elements.collectionSortSelect) {
+      elements.collectionSortSelect.addEventListener("change", renderCollection);
+    }
     elements.levelGrid.addEventListener("click", handleLevelChoice);
+    elements.levelGrid.addEventListener("keydown", handleLevelChoiceKeydown);
     if (elements.levelToggleButton) {
       elements.levelToggleButton.addEventListener("click", () => {
         levelPanelCollapsed = !levelPanelCollapsed;
@@ -1682,33 +1699,77 @@
 
     elements.levelStatus.textContent = hasLevel
       ? `Current level ${state.selectedLevel}. You can change it at any time.`
-      : (currentUser ? "Choose the level that feels right. You can change it at any time." : "Choose a starting level. Sign in to save it online.");
+      : (currentUser ? "Choose the level that feels right. You can change it at any time." : "Choose a spelling level. Sign in to save it online.");
 
     for (let level = MIN_LEVEL; level <= MAX_LEVEL; level += 1) {
       const examples = getLevelEntries(level).slice(0, 10).map((entry) => entry.word);
+      const mastery = getLevelMasteryStats(level);
+      const isSelected = state.selectedLevel === level;
       const tile = document.createElement("article");
-      tile.className = `level-tile${state.selectedLevel === level ? " is-selected" : ""}`;
+      tile.className = `level-tile${isSelected ? " is-selected" : ""}`;
+      tile.dataset.level = String(level);
+      tile.setAttribute("role", "button");
+      tile.setAttribute("tabindex", "0");
+      tile.setAttribute("aria-pressed", String(isSelected));
+      tile.setAttribute("aria-label", `Choose level ${level}. ${mastery.mastered} of ${mastery.total} words mastered.`);
       tile.innerHTML = `
         <h3>Level ${level}</h3>
+        <p class="level-tile__mastery">${mastery.mastered}/${mastery.total} words mastered</p>
         <p>${examples.join(", ") || "Words loading…"}</p>
-        <button class="primary-button" type="button" data-level="${level}" ${state.selectedLevel === level ? "disabled" : ""}>${state.selectedLevel === level ? "Selected" : `Use level ${level}`}</button>
       `;
       elements.levelGrid.appendChild(tile);
     }
   }
 
+  function getLevelMasteryStats(level) {
+    const entries = getLevelEntries(level);
+    const localMastered = entries.filter((entry) => state.progress[entry.word] && state.progress[entry.word].mastered).length;
+    const localStats = { mastered: localMastered, total: entries.length };
+    const remoteStats = levelMasteryCountsByLevel.get(Number(level));
+
+    if (!currentUser || !remoteStats) {
+      return localStats;
+    }
+
+    if (hasPendingCanonicalWrites(getCurrentUserId())) {
+      return {
+        mastered: Math.max(localStats.mastered, Number(remoteStats.mastered || 0)),
+        total: Math.max(localStats.total, Number(remoteStats.total || 0))
+      };
+    }
+
+    return {
+      mastered: Number(remoteStats.mastered || 0),
+      total: Number(remoteStats.total || localStats.total || 0)
+    };
+  }
+
   function handleLevelChoice(event) {
-    const button = event.target.closest("button[data-level]");
-    if (!button) {
+    const tile = event.target.closest("[data-level]");
+    if (!tile || !elements.levelGrid.contains(tile)) {
       return;
     }
 
-    const level = Number(button.dataset.level);
+    const level = Number(tile.dataset.level);
     if (!Number.isInteger(level) || level < MIN_LEVEL || level > MAX_LEVEL) {
       return;
     }
 
     chooseStartingLevel(level);
+  }
+
+  function handleLevelChoiceKeydown(event) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    const tile = event.target.closest("[data-level]");
+    if (!tile || !elements.levelGrid.contains(tile)) {
+      return;
+    }
+
+    event.preventDefault();
+    chooseStartingLevel(Number(tile.dataset.level));
   }
 
   function chooseStartingLevel(level) {
@@ -2050,6 +2111,7 @@
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     saveState();
     renderStats();
+    renderLevelSelector();
     renderShop();
     renderCollection();
     renderPacks();
@@ -2196,6 +2258,7 @@
     if (currentUser && Number.isFinite(Number(state.totalCorrectSpellings))) {
       return Math.max(0, Number(state.totalCorrectSpellings));
     }
+
     return getLocalTotalCorrectSpellings();
   }
 
@@ -2213,10 +2276,72 @@
     return getAvailableCardIndexes().filter((index) => !ownedSet.has(index));
   }
 
+  function getSelectValue(selectElement, fallback) {
+    return selectElement && selectElement.value ? selectElement.value : fallback;
+  }
+
+  function getCardPackSortValue(cardIndex) {
+    const template = ACTIVE_CREATURE_CARD_TEMPLATES[cardIndex];
+    if (!template) return Number.MAX_SAFE_INTEGER;
+    const packIndex = ACTIVE_CARD_PACKS.findIndex((pack) => pack.id === template.packId);
+    return packIndex >= 0 ? packIndex : Number.MAX_SAFE_INTEGER;
+  }
+
+  function compareCardsByPack(cardIndexA, cardIndexB) {
+    const packCompare = getCardPackSortValue(cardIndexA) - getCardPackSortValue(cardIndexB);
+    if (packCompare !== 0) return packCompare;
+    return cardIndexA - cardIndexB;
+  }
+
+  function sortShopCardIndexes(indexes) {
+    const sortMode = getSelectValue(elements.shopSortSelect, "pack");
+    const sorted = indexes.slice();
+
+    if (sortMode === "cost-asc") {
+      return sorted.sort((a, b) => getCardCost(a) - getCardCost(b) || compareCardsByPack(a, b));
+    }
+
+    if (sortMode === "cost-desc") {
+      return sorted.sort((a, b) => getCardCost(b) - getCardCost(a) || compareCardsByPack(a, b));
+    }
+
+    return sorted.sort(compareCardsByPack);
+  }
+
+  function getOwnedCardAttackSortValue(card, unknownValue) {
+    const minStrength = getCardCost(card.index);
+    return isValidBattleAttack(card.attackStrength, minStrength) ? Number(card.attackStrength) : unknownValue;
+  }
+
+  function sortOwnedCardsForCollection(cards) {
+    const sortMode = getSelectValue(elements.collectionSortSelect, "recent");
+    const sorted = cards.slice();
+
+    if (sortMode === "pack") {
+      return sorted.sort((a, b) => compareCardsByPack(a.index, b.index) || Number(b.purchasedAt || 0) - Number(a.purchasedAt || 0));
+    }
+
+    if (sortMode === "attack-desc") {
+      return sorted.sort((a, b) =>
+        getOwnedCardAttackSortValue(b, -Infinity) - getOwnedCardAttackSortValue(a, -Infinity) ||
+        Number(b.purchasedAt || 0) - Number(a.purchasedAt || 0)
+      );
+    }
+
+    if (sortMode === "attack-asc") {
+      return sorted.sort((a, b) =>
+        getOwnedCardAttackSortValue(a, Infinity) - getOwnedCardAttackSortValue(b, Infinity) ||
+        Number(b.purchasedAt || 0) - Number(a.purchasedAt || 0)
+      );
+    }
+
+    return sorted.sort((a, b) => Number(b.purchasedAt || 0) - Number(a.purchasedAt || 0));
+  }
+
   function renderShop() {
     const availableIndexes = getAvailableCardIndexes();
     const ownedSet = new Set(state.ownedCards.map((card) => card.index));
-    const shopIndexes = availableIndexes.filter((index) => !ownedSet.has(index));
+    const shopIndexes = sortShopCardIndexes(availableIndexes.filter((index) => !ownedSet.has(index)));
     const spareUnlocks = Math.max(0, getPackUnlockSlots(state) - (state.unlockedPackIds || []).length);
     const lockedCount = ACTIVE_CARD_PACKS.filter((pack) => !isPackUnlocked(pack.id)).length;
 
@@ -2275,9 +2400,7 @@
     const latestTemplate = ACTIVE_CREATURE_CARD_TEMPLATES[state.ownedCards[state.ownedCards.length - 1].index];
     elements.collectionBadge.textContent = `Latest: ${latestTemplate.name}`;
 
-    state.ownedCards
-      .slice()
-      .sort((a, b) => Number(b.purchasedAt || 0) - Number(a.purchasedAt || 0))
+    sortOwnedCardsForCollection(state.ownedCards)
       .forEach((ownedCard) => {
         const template = ACTIVE_CREATURE_CARD_TEMPLATES[ownedCard.index];
         const node = elements.collectionCardTemplate.content.cloneNode(true);
@@ -2373,8 +2496,8 @@
     list.dataset.loaded = "true";
   }
 
-  async function getCardHistory(instanceId, cardIndex) {
-    if (!supabaseClient || !currentUser || !instanceId) {
+  async function getCardHistory(instanceId, cardIndex, userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId) || !instanceId) {
       return [`First bought by ${getCurrentUsername()} on ${formatDate(Date.now())}.`];
     }
 
@@ -2384,6 +2507,8 @@
       .eq("card_instance_id", instanceId)
       .order("created_at", { ascending: true });
 
+    if (!isCurrentUserId(userId)) return [];
+
     if (error || !data || data.length === 0) {
       return [`First bought by ${getCurrentUsername()} on ${formatDate(Date.now())}.`];
     }
@@ -2392,6 +2517,7 @@
     let nameMap = new Map();
     if (userIds.length > 0) {
       const { data: profiles } = await supabaseClient.from("profiles").select("user_id,display_name,username").in("user_id", userIds);
+      if (!isCurrentUserId(userId)) return [];
       nameMap = new Map((profiles || []).map((profile) => [profile.user_id, profile.display_name || profile.username || "Player"]));
     }
 
@@ -2900,6 +3026,7 @@ function scoreWord(word) {
     } else {
       pendingCanonicalWritesByUser.clear();
       pendingWordAttemptsByUser.clear();
+      levelMasteryCountsByLevel = new Map();
       state = loadStateFromKey(getAnonymousStorageKey());
       currentWord = null;
       renderStats();
@@ -2996,12 +3123,39 @@ function scoreWord(word) {
     if (!isCurrentUserId(userId)) return;
     await hydratePackUnlocksFromSupabase(userId);
     if (!isCurrentUserId(userId)) return;
+    await refreshLevelMasteryCountsFromSupabase(userId);
+    if (!isCurrentUserId(userId)) return;
 
     ensureProgressForActiveWords(state);
     cleanQueue(state);
     fillQueueToSize(state, ACTIVE_WORD_TARGET);
     state.lastUpdatedAt = Date.now();
     window.localStorage.setItem(getStorageKeyForUserId(userId), JSON.stringify(state));
+  }
+
+  async function refreshLevelMasteryCountsFromSupabase(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) {
+      levelMasteryCountsByLevel = new Map();
+      return;
+    }
+
+    const { data, error } = await supabaseClient.rpc("get_spelling_level_mastery_counts");
+    if (!isCurrentUserId(userId)) return;
+
+    if (error || !Array.isArray(data)) {
+      levelMasteryCountsByLevel = new Map();
+      return;
+    }
+
+    levelMasteryCountsByLevel = new Map(data
+      .map((row) => [
+        Number(row.level),
+        {
+          mastered: Math.max(0, Number(row.mastered_words || 0)),
+          total: Math.max(0, Number(row.total_words || 0))
+        }
+      ])
+      .filter(([level]) => Number.isInteger(level) && level >= MIN_LEVEL && level <= MAX_LEVEL));
   }
 
   async function hydrateBalanceFromSupabase(userId = getCurrentUserId()) {
@@ -3147,8 +3301,10 @@ function scoreWord(word) {
       if (!error && data && data.balance) {
         applyCanonicalBalance(data.balance);
         await hydrateWordProgressFromSupabase(userId);
+        await refreshLevelMasteryCountsFromSupabase(userId);
         saveState();
         renderStats();
+        renderLevelSelector();
       }
     } finally {
       clearPendingWordAttempt(userId, word);
@@ -3243,6 +3399,10 @@ function scoreWord(word) {
   }
 
   function renderAuthPanel() {
+    if (elements.authPanel) {
+      elements.authPanel.classList.toggle("is-signed-in", Boolean(currentUser));
+    }
+
     if (!currentUser) {
       elements.authStatus.textContent = supabaseClient
         ? "Create an account or sign in with a username and password."
@@ -3250,6 +3410,8 @@ function scoreWord(word) {
       elements.signOutButton.hidden = true;
       elements.signInButton.hidden = false;
       elements.signUpButton.hidden = false;
+      elements.authEmail.hidden = false;
+      elements.authPassword.hidden = false;
       elements.signInButton.disabled = !supabaseClient;
       elements.signUpButton.disabled = !supabaseClient;
       elements.authEmail.disabled = !supabaseClient;
@@ -3261,8 +3423,11 @@ function scoreWord(word) {
     elements.signOutButton.hidden = false;
     elements.signInButton.hidden = true;
     elements.signUpButton.hidden = true;
-    elements.authEmail.disabled = false;
-    elements.authPassword.disabled = false;
+    elements.authEmail.hidden = true;
+    elements.authPassword.hidden = true;
+    elements.authEmail.disabled = true;
+    elements.authPassword.disabled = true;
+    elements.authPassword.value = "";
   }
 
   function makeUsernameEmail(username) {
@@ -3330,7 +3495,9 @@ function scoreWord(word) {
     await supabaseClient.auth.signOut();
     pendingCanonicalWritesByUser.clear();
     pendingWordAttemptsByUser.clear();
+    levelMasteryCountsByLevel = new Map();
     currentUser = null;
+    hideAdminPanel();
     state = loadStateFromKey(getAnonymousStorageKey());
     currentWord = null;
     renderAuthPanel();
@@ -3595,36 +3762,38 @@ function scoreWord(word) {
     battleLobbyTimer = window.setInterval(() => refreshBattleLobbyCount(getCurrentUserId()), BATTLE_LOBBY_REFRESH_MS);
   }
 
-  async function sendBattleHeartbeat() {
-    if (!supabaseClient || !currentUser || !currentBattle || currentBattle.status !== "waiting") {
+  async function sendBattleHeartbeat(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId) || !currentBattle || currentBattle.status !== "waiting") {
       return;
     }
 
+    const battleId = currentBattle.id;
+    const heartbeatAt = new Date().toISOString();
     const { error } = await supabaseClient
       .from("battle_rooms")
-      .update({ heartbeat_at: new Date().toISOString() })
-      .eq("id", currentBattle.id)
-      .eq("challenger_id", currentUser.id)
+      .update({ heartbeat_at: heartbeatAt })
+      .eq("id", battleId)
+      .eq("challenger_id", userId)
       .eq("status", "waiting");
 
-    if (!error) {
-      currentBattle.heartbeat_at = new Date().toISOString();
+    if (isCurrentUserId(userId) && currentBattle && currentBattle.id === battleId && !error) {
+      currentBattle.heartbeat_at = heartbeatAt;
     }
   }
 
-  async function cancelOwnStaleWaitingBattles() {
-    if (!supabaseClient || !currentUser) return;
+  async function cancelOwnStaleWaitingBattles(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
     await supabaseClient
       .from("battle_rooms")
       .update({ status: "cancelled" })
-      .eq("challenger_id", currentUser.id)
+      .eq("challenger_id", userId)
       .eq("status", "waiting")
       .lt("created_at", getBattleWaitTimeoutIso());
   }
 
-  async function cancelWaitingBattle() {
-    if (!supabaseClient || !currentUser || !currentBattle || currentBattle.status !== "waiting") {
+  async function cancelWaitingBattle(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId) || !currentBattle || currentBattle.status !== "waiting") {
       currentBattle = null;
       currentBattlePointSpent = false;
       setBattleWaitingUi(false);
@@ -3632,27 +3801,29 @@ function scoreWord(word) {
       return;
     }
 
+    const battleId = currentBattle.id;
     await supabaseClient
       .from("battle_rooms")
       .update({ status: "cancelled" })
-      .eq("id", currentBattle.id)
-      .eq("challenger_id", currentUser.id)
+      .eq("id", battleId)
+      .eq("challenger_id", userId)
       .eq("status", "waiting");
+
+    if (!isCurrentUserId(userId)) return;
 
     stopBattlePolling();
     currentBattle = null;
     currentBattlePointSpent = false;
     setBattleWaitingUi(false);
-    setBattleWaitingUi(false);
     elements.battleStatus.textContent = "Battle cancelled. You kept your battle point.";
     elements.battleOpponent.textContent = "";
     elements.battleResult.textContent = "";
     renderBattlePanel();
-    refreshBattleLobbyCount();
+    refreshBattleLobbyCount(userId);
   }
 
-  async function cancelWaitingBattleIfExpired() {
-    if (!currentBattle || currentBattle.status !== "waiting") {
+  async function cancelWaitingBattleIfExpired(userId = getCurrentUserId()) {
+    if (!isCurrentUserId(userId) || !currentBattle || currentBattle.status !== "waiting") {
       return false;
     }
 
@@ -3661,7 +3832,8 @@ function scoreWord(word) {
       return false;
     }
 
-    await cancelWaitingBattle();
+    await cancelWaitingBattle(userId);
+    if (!isCurrentUserId(userId)) return true;
     elements.battleStatus.textContent = "No opponent joined in time, so the battle was cancelled. You kept your battle point.";
     return true;
   }
@@ -3709,16 +3881,21 @@ function scoreWord(word) {
   }
 
   async function enterBattleArena() {
-    if (!supabaseClient || !currentUser) {
+    const userId = getCurrentUserId();
+    if (!supabaseClient || !isCurrentUserId(userId)) {
       elements.battleStatus.textContent = "Sign in first to use the battle arena.";
       return;
     }
+
+    await cancelOwnStaleWaitingBattles(userId);
+    if (!isCurrentUserId(userId)) return;
 
     const selectedId = String(elements.battleCardSelect.value || "");
     let ownedCard = state.ownedCards.find((card) => String(card.id || `${card.index}-${card.purchasedAt}`) === selectedId);
 
     if (!ownedCard || !ownedCard.id) {
-      await refreshCardsFromSupabase();
+      await refreshCardsFromSupabase(userId);
+      if (!isCurrentUserId(userId)) return;
       ownedCard = state.ownedCards.find((card) => String(card.id || `${card.index}-${card.purchasedAt}`) === selectedId);
     }
 
@@ -3738,7 +3915,15 @@ function scoreWord(word) {
     elements.battleOpponent.textContent = "";
     renderBattleGrid(0.5);
 
-    const result = await enterBattleWithRpc(ownedCard.id);
+    beginCanonicalWrite(userId);
+    let result;
+    try {
+      result = await enterBattleWithRpc(ownedCard.id, userId);
+    } finally {
+      endCanonicalWrite(userId);
+    }
+
+    if (!isCurrentUserId(userId)) return;
 
     if (!result || result.ok === false) {
       elements.battleStatus.textContent = result && result.message ? result.message : "Could not enter battle. Please try again.";
@@ -3760,8 +3945,9 @@ function scoreWord(word) {
       const cardIndex = currentBattle.challenger_card_index ?? ownedCard.index;
       const attack = currentBattle.challenger_attack || ownedCard.attackStrength || "?";
       elements.battleStatus.textContent = `Waiting for an opponent. ${ACTIVE_CREATURE_CARD_TEMPLATES[cardIndex].name} strength: ${attack}. Keep this lobby open, or cancel to leave.`;
-      startBattlePolling(currentBattle.id);
-      await refreshCardsFromSupabase();
+      startBattlePolling(currentBattle.id, userId);
+      await refreshCardsFromSupabase(userId);
+      if (!isCurrentUserId(userId)) return;
       renderBattlePanel();
       return;
     }
@@ -3770,9 +3956,10 @@ function scoreWord(word) {
       setBattleWaitingUi(false);
       stopBattlePolling();
       renderMatchedBattle(currentBattle);
-      await showResolvedBattle(currentBattle);
-      await refreshCardsFromSupabase();
-      await hydrateCanonicalStateFromSupabase();
+      await showResolvedBattle(currentBattle, userId);
+      await refreshCardsFromSupabase(userId);
+      await hydrateCanonicalStateFromSupabase(userId);
+      if (!isCurrentUserId(userId)) return;
       renderStats();
       renderShop();
       renderCollection();
@@ -3785,10 +3972,14 @@ function scoreWord(word) {
     elements.enterBattleButton.disabled = false;
   }
 
-  async function enterBattleWithRpc(cardId) {
+  async function enterBattleWithRpc(cardId, userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return { ok: false, message: "Sign in first." };
+
     const { data, error } = await supabaseClient.rpc("enter_battle", {
       p_card_id: cardId
     });
+
+    if (!isCurrentUserId(userId)) return { ok: false, message: "User changed before the battle response returned." };
 
     if (error) {
       return { ok: false, message: error.message };
@@ -3797,8 +3988,8 @@ function scoreWord(word) {
     return data || { ok: false, message: "No battle response returned." };
   }
 
-  async function tryMatchWhileWaiting() {
-    if (!supabaseClient || !currentUser || !currentBattle || currentBattle.status !== "waiting") {
+  async function tryMatchWhileWaiting(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId) || !currentBattle || currentBattle.status !== "waiting") {
       return false;
     }
 
@@ -3807,9 +3998,15 @@ function scoreWord(word) {
       return false;
     }
 
-    const result = await enterBattleWithRpc(cardId);
+    beginCanonicalWrite(userId);
+    let result;
+    try {
+      result = await enterBattleWithRpc(cardId, userId);
+    } finally {
+      endCanonicalWrite(userId);
+    }
 
-    if (!result || result.ok === false) {
+    if (!isCurrentUserId(userId) || !result || result.ok === false) {
       return false;
     }
 
@@ -3829,9 +4026,10 @@ function scoreWord(word) {
       stopBattlePolling();
       setBattleWaitingUi(false);
       renderMatchedBattle(currentBattle);
-      await showResolvedBattle(currentBattle);
-      await refreshCardsFromSupabase();
-      await hydrateCanonicalStateFromSupabase();
+      await showResolvedBattle(currentBattle, userId);
+      await refreshCardsFromSupabase(userId);
+      await hydrateCanonicalStateFromSupabase(userId);
+      if (!isCurrentUserId(userId)) return false;
       renderStats();
       renderShop();
       renderCollection();
@@ -3850,18 +4048,23 @@ function scoreWord(word) {
     void spendBattlePointRemote();
   }
 
-  async function spendBattlePointRemote() {
-    if (!supabaseClient || !currentUser) return;
+  async function spendBattlePointRemote(userId = getCurrentUserId()) {
+    if (!supabaseClient || !isCurrentUserId(userId)) return;
 
-    const { data, error } = await supabaseClient.rpc("spend_battle_point");
-    if (!error && data && data.balance) {
-      applyCanonicalBalance(data.balance);
-      saveState();
-      renderStats();
+    beginCanonicalWrite(userId);
+    try {
+      const { data, error } = await supabaseClient.rpc("spend_battle_point");
+      if (isCurrentUserId(userId) && !error && data && data.balance) {
+        applyCanonicalBalance(data.balance);
+        saveState();
+        renderStats();
+      }
+    } finally {
+      endCanonicalWrite(userId);
     }
   }
 
-  async function getOrCreateBattleStrength(ownedCard) {
+  async function getOrCreateBattleStrength(ownedCard, userId = getCurrentUserId()) {
     const minStrength = getCardCost(ownedCard.index);
     if (isValidBattleAttack(ownedCard.attackStrength, minStrength)) {
       return Number(ownedCard.attackStrength);
@@ -3869,21 +4072,21 @@ function scoreWord(word) {
 
     const attackStrength = randomInt(minStrength, 100);
 
-    if (ownedCard.id) {
+    if (ownedCard.id && supabaseClient && isCurrentUserId(userId)) {
       const { error } = await supabaseClient
         .from("user_cards")
         .update({ attack_strength: attackStrength })
         .eq("id", ownedCard.id)
-        .eq("user_id", currentUser.id);
+        .eq("user_id", userId);
 
-      if (!error) {
+      if (isCurrentUserId(userId) && !error) {
         ownedCard.attackStrength = attackStrength;
         const local = state.ownedCards.find((card) => card.id === ownedCard.id);
         if (local) local.attackStrength = attackStrength;
         saveState();
         renderCollection();
       }
-    } else {
+    } else if (!currentUser) {
       ownedCard.attackStrength = attackStrength;
       saveState();
     }
@@ -3891,35 +4094,42 @@ function scoreWord(word) {
     return attackStrength;
   }
 
-  function startBattlePolling(battleId) {
+  function startBattlePolling(battleId, userId = getCurrentUserId()) {
     stopBattlePolling();
     battlePollTimer = window.setInterval(async () => {
+      if (!supabaseClient || !isCurrentUserId(userId)) {
+        stopBattlePolling();
+        return;
+      }
+
       const { data } = await supabaseClient
         .from("battle_rooms")
         .select("*")
         .eq("id", battleId)
         .maybeSingle();
 
+      if (!isCurrentUserId(userId)) return;
       if (!data) return;
       currentBattle = data;
 
       if (data.status === "waiting") {
-        await sendBattleHeartbeat();
-        const expired = await cancelWaitingBattleIfExpired();
+        await sendBattleHeartbeat(userId);
+        const expired = await cancelWaitingBattleIfExpired(userId);
         if (!expired) {
-          await tryMatchWhileWaiting();
+          await tryMatchWhileWaiting(userId);
         }
         return;
       }
 
       if (data.status === "ready") {
         renderMatchedBattle(data);
-        await resolveCurrentBattle();
+        await resolveCurrentBattle(userId);
       } else if (data.status === "resolved") {
         stopBattlePolling();
         setBattleWaitingUi(false);
-        await showResolvedBattle(data);
-        await refreshCardsFromSupabase();
+        await showResolvedBattle(data, userId);
+        await refreshCardsFromSupabase(userId);
+        if (!isCurrentUserId(userId)) return;
         renderStats();
         renderShop();
         renderCollection();
@@ -3955,37 +4165,51 @@ function scoreWord(word) {
     renderBattleGrid(perspective.userPercent);
   }
 
-  async function resolveCurrentBattle() {
-    if (!currentBattle || currentBattle.status === "resolved") {
+  async function resolveCurrentBattle(userId = getCurrentUserId()) {
+    if (!isCurrentUserId(userId) || !currentBattle || currentBattle.status === "resolved") {
       return;
     }
 
     stopBattlePolling();
 
     const battleBeforeResolve = { ...currentBattle };
-    const { data, error } = await supabaseClient.rpc("resolve_battle", {
-      p_battle_id: currentBattle.id
-    });
+    beginCanonicalWrite(userId);
+    let data;
+    let error;
+    try {
+      const response = await supabaseClient.rpc("resolve_battle", {
+        p_battle_id: battleBeforeResolve.id
+      });
+      data = response.data;
+      error = response.error;
+    } finally {
+      endCanonicalWrite(userId);
+    }
+
+    if (!isCurrentUserId(userId)) return;
 
     if (error) {
       elements.battleResult.textContent = `Battle matched, but resolve_battle is not ready: ${error.message}`;
-      elements.enterBattleButton.disabled = false;
+      startBattlePolling(battleBeforeResolve.id, userId);
       return;
     }
 
     const resolved = Array.isArray(data) ? data[0] : data;
     const result = { ...battleBeforeResolve, ...(resolved || {}) };
-    await showResolvedBattle(result);
-    await refreshCardsFromSupabase();
+    await showResolvedBattle(result, userId);
+    await refreshCardsFromSupabase(userId);
+    if (!isCurrentUserId(userId)) return;
     renderStats();
     renderShop();
     renderCollection();
     renderPacks();
   }
 
-  async function showResolvedBattle(result) {
+  async function showResolvedBattle(result, userId = getCurrentUserId()) {
+    if (!isCurrentUserId(userId)) return;
+
     const winnerId = result.winner_id;
-    const didWin = winnerId === currentUser.id;
+    const didWin = winnerId === userId;
     const perspective = getBattlePerspective(result);
 
     if (perspective) {
@@ -3994,6 +4218,7 @@ function scoreWord(word) {
       const attackRoll = Number(result.result_roll);
       const perspectiveRoll = Number.isFinite(attackRoll) ? (perspective.isChallenger ? attackRoll : 1 - attackRoll) : NaN;
       await animateBattleAttack(perspective.userPercent, didWin, perspectiveRoll);
+      if (!isCurrentUserId(userId)) return;
     }
 
     elements.battleResult.textContent = didWin
@@ -4004,7 +4229,7 @@ function scoreWord(word) {
     currentBattlePointSpent = false;
     elements.enterBattleButton.disabled = false;
     renderBattlePanel();
-    refreshRecentBattleResults();
+    refreshRecentBattleResults(userId);
   }
 
   function getBattlePerspective(battle) {
@@ -4098,12 +4323,12 @@ function scoreWord(word) {
     }
   }
 
-  async function refreshRecentBattleResults() {
+  async function refreshRecentBattleResults(userId = getCurrentUserId()) {
     if (!elements.recentBattleList) return;
 
     elements.recentBattleList.innerHTML = "";
 
-    if (!supabaseClient || !currentUser) {
+    if (!supabaseClient || !isCurrentUserId(userId)) {
       elements.recentBattleList.appendChild(makeListItem("Sign in to see recent battles."));
       return;
     }
@@ -4112,9 +4337,11 @@ function scoreWord(word) {
       .from("battle_rooms")
       .select("id,status,challenger_id,challenger_name,challenger_card_index,challenger_attack,opponent_id,opponent_name,opponent_card_index,opponent_attack,winner_id,loser_id,resolved_at,created_at")
       .eq("status", "resolved")
-      .or(`challenger_id.eq.${currentUser.id},opponent_id.eq.${currentUser.id}`)
+      .or(`challenger_id.eq.${userId},opponent_id.eq.${userId}`)
       .order("resolved_at", { ascending: false })
       .limit(5);
+
+    if (!isCurrentUserId(userId)) return;
 
     if (error) {
       elements.recentBattleList.appendChild(makeListItem("Recent battles unavailable."));
@@ -4127,8 +4354,8 @@ function scoreWord(word) {
     }
 
     data.forEach((battle) => {
-      const didWin = battle.winner_id === currentUser.id;
-      const isChallenger = battle.challenger_id === currentUser.id;
+      const didWin = battle.winner_id === userId;
+      const isChallenger = battle.challenger_id === userId;
       const myCardIndex = isChallenger ? battle.challenger_card_index : battle.opponent_card_index;
       const opponentCardIndex = isChallenger ? battle.opponent_card_index : battle.challenger_card_index;
       const opponentName = isChallenger ? battle.opponent_name : battle.challenger_name;
@@ -4285,6 +4512,7 @@ function scoreWord(word) {
     }
 
     elements.adminPanel.hidden = false;
+    if (elements.debugPanel) elements.debugPanel.hidden = false;
     elements.adminStatus.textContent = "Admin tools ready.";
     populateAdminCardSelect();
     renderAdminPackList([]);
@@ -4294,6 +4522,9 @@ function scoreWord(word) {
   function hideAdminPanel() {
     if (elements.adminPanel) {
       elements.adminPanel.hidden = true;
+    }
+    if (elements.debugPanel) {
+      elements.debugPanel.hidden = true;
     }
     adminSelectedUserId = null;
     adminSnapshotData = null;
@@ -4311,6 +4542,7 @@ function scoreWord(word) {
     }
 
     await hydrateCanonicalStateFromSupabase(affectedUserId);
+    await refreshLevelMasteryCountsFromSupabase(affectedUserId);
     await refreshCardsFromSupabase(affectedUserId);
     if (!isCurrentUserId(affectedUserId)) return;
 
@@ -4594,33 +4826,42 @@ function scoreWord(word) {
   }
 
   async function renderLeaderboards() {
-    if (!elements.pointsLeaderboard || !elements.masteredLeaderboard) {
+    const leaderboardElements = [elements.pointsLeaderboard, elements.masteredLeaderboard, elements.battleWinsLeaderboard].filter(Boolean);
+    if (leaderboardElements.length === 0) {
       return;
     }
 
     if (!supabaseClient) {
-      renderLeaderboardList(elements.pointsLeaderboard, []);
-      renderLeaderboardList(elements.masteredLeaderboard, []);
+      leaderboardElements.forEach((element) => renderLeaderboardList(element, []));
       return;
     }
 
     const { data, error } = await supabaseClient.rpc("get_spell_battle_leaderboards");
 
     if (error) {
-      renderLeaderboardError(elements.pointsLeaderboard, "Leaderboard unavailable");
-      renderLeaderboardError(elements.masteredLeaderboard, "Leaderboard unavailable");
+      leaderboardElements.forEach((element) => renderLeaderboardError(element, "Leaderboard unavailable"));
       return;
     }
 
     const rows = Array.isArray(data) ? data : [];
-    renderLeaderboardList(
-      elements.pointsLeaderboard,
-      rows.filter((row) => row.leaderboard_type === "points")
-    );
-    renderLeaderboardList(
-      elements.masteredLeaderboard,
-      rows.filter((row) => row.leaderboard_type === "mastered")
-    );
+    if (elements.pointsLeaderboard) {
+      renderLeaderboardList(
+        elements.pointsLeaderboard,
+        rows.filter((row) => row.leaderboard_type === "points")
+      );
+    }
+    if (elements.masteredLeaderboard) {
+      renderLeaderboardList(
+        elements.masteredLeaderboard,
+        rows.filter((row) => row.leaderboard_type === "mastered")
+      );
+    }
+    if (elements.battleWinsLeaderboard) {
+      renderLeaderboardList(
+        elements.battleWinsLeaderboard,
+        rows.filter((row) => row.leaderboard_type === "battle_wins")
+      );
+    }
   }
 
   function renderLeaderboardList(element, rows) {
