@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="A spelling, card collecting, and battle game for kids." />
     <title>Spelling Battle Cards</title>
-    <link rel="stylesheet" href="src/styles.css" />
+    <link rel="stylesheet" href="src/styles.css?v=20260506-auth-lists" />
   </head>
   <body>
     <header class="site-header">
@@ -17,7 +17,7 @@
         <label class="sr-only" for="authEmail">Username</label>
         <input id="authEmail" type="text" autocomplete="username" placeholder="username" />
         <label class="sr-only" for="authPassword">Password</label>
-        <input id="authPassword" type="text" autocomplete="current-password" placeholder="password" />
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="password" />
         <button class="primary-button" id="signInButton" type="button">Log in</button>
         <button class="secondary-button" id="signUpButton" type="button">Create account</button>
         <button class="secondary-button" id="signOutButton" type="button" hidden>Sign out</button>
@@ -375,6 +375,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="src/supabase-config.js"></script>
     <script src="src/graded-words.js"></script>
-    <script src="src/app.js"></script>
+    <script src="src/app.js?v=20260506-auth-lists"></script>
   </body>
 </html>
