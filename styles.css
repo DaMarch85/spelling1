@@ -1642,6 +1642,34 @@ body.is-battle-waiting .battle-card::before {
   font-weight: 900;
 }
 
+
+.word-list-control {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+  max-width: min(100%, 32rem);
+}
+
+.word-list-control label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.word-list-control select {
+  width: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  padding: 0.65rem 0.8rem;
+  font-weight: 900;
+}
+
+.level-tile__label {
+  min-height: 0 !important;
+  margin: -0.2rem 0 0.45rem;
+  color: #fff1db !important;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
 .card-toolbar {
   display: flex;
   align-items: center;
@@ -1672,6 +1700,7 @@ select,
 .battle-controls select,
 .mode-control select,
 .card-toolbar select,
+.word-list-control select,
 .admin-search-row select,
 .admin-card-add-row select {
   background: #ffffff !important;
@@ -1720,7 +1749,8 @@ select option {
     flex-direction: column;
   }
 
-  .card-toolbar select {
+  .card-toolbar select,
+  .word-list-control select {
     width: 100%;
   }
 }

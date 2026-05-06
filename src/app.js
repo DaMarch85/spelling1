@@ -3,10 +3,22 @@
 
   const MIN_LEVEL = 1;
   const MAX_LEVEL = 20;
+  const DEFAULT_WORD_LIST_ID = "graded-5000";
+  const FALLBACK_WORD_LISTS = Object.freeze([
+    {
+      id: DEFAULT_WORD_LIST_ID,
+      name: "Graded spelling word bank",
+      description: "The original graded spelling levels.",
+      sortOrder: 1
+    }
+  ]);
 
-  let WORD_ENTRIES = normaliseWordEntries(window.GRADED_SPELLING_WORDS || []);
+  let WORD_LISTS = FALLBACK_WORD_LISTS.slice();
+  let ALL_WORD_ENTRIES = normaliseWordEntries(window.GRADED_SPELLING_WORDS || [], { defaultListId: DEFAULT_WORD_LIST_ID });
+  let WORD_ENTRIES = ALL_WORD_ENTRIES.slice();
   let WORD_ENTRIES_BY_LEVEL = groupWordEntriesByLevel(WORD_ENTRIES);
   let WORDS = [];
+  let wordDefinitionsLoadedFromDatabase = false;
 
   const BASE_STORAGE_KEY = "spell-battle-cards-state-v13";
   const SHARED_LOCAL_MIGRATION_KEYS = [
@@ -1304,6 +1316,9 @@
     levelPanel: document.querySelector("#levelPanel"),
     levelGrid: document.querySelector("#levelGrid"),
     levelStatus: document.querySelector("#levelStatus"),
+    wordListControl: document.querySelector("#wordListControl"),
+    wordListSelect: document.querySelector("#wordListSelect"),
+    wordListDescription: document.querySelector("#wordListDescription"),
     levelToggleButton: document.querySelector("#levelToggleButton"),
     wordLevelBadge: document.querySelector("#wordLevelBadge"),
     refreshButton: document.querySelector("#refreshButton"),
@@ -1400,6 +1415,7 @@
   let supabaseClient = null;
   let currentUser = null;
   let state = loadState();
+  applyActiveWordList(state);
   let levelPanelCollapsed = Boolean(state && state.selectedLevel);
   let currentWord = null;
   let autoAdvanceTimer = null;
@@ -1487,6 +1503,9 @@
     }
     if (elements.collectionSortSelect) {
       elements.collectionSortSelect.addEventListener("change", renderCollection);
+    }
+    if (elements.wordListSelect) {
+      elements.wordListSelect.addEventListener("change", handleWordListChoice);
     }
     elements.levelGrid.addEventListener("click", handleLevelChoice);
     elements.levelGrid.addEventListener("keydown", handleLevelChoiceKeydown);
@@ -1599,25 +1618,53 @@
     );
   }
 
-  function normaliseWordEntries(entries) {
-    return entries
+  function normaliseWordListId(value, fallback = DEFAULT_WORD_LIST_ID) {
+    const candidate = String(value || "").trim();
+    return candidate || fallback;
+  }
+
+  function normaliseWordLists(rows) {
+    const seen = new Set();
+    return (Array.isArray(rows) ? rows : [])
+      .map((row, index) => {
+        const id = normaliseWordListId(row && row.id, "");
+        if (!id || seen.has(id)) {
+          return null;
+        }
+        seen.add(id);
+        return {
+          id,
+          name: String(row.name || row.title || id).trim() || id,
+          description: String(row.description || "").trim(),
+          sortOrder: Number(row.sort_order || row.sortOrder || index + 1) || index + 1
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  function normaliseWordEntries(entries, options = {}) {
+    const defaultListId = normaliseWordListId(options.defaultListId || DEFAULT_WORD_LIST_ID);
+    return (Array.isArray(entries) ? entries : [])
       .map((entry, index) => {
-        const word = String(entry.word || entry.Word || "").trim().toLowerCase();
-        const level = Number(entry.level || entry.Level);
+        const row = entry || {};
+        const word = String(row.word || row.Word || "").trim().toLowerCase();
+        const level = Number(row.level || row.Level);
         if (!word || !Number.isInteger(level)) {
           return null;
         }
 
         return {
           word,
-          level: clamp(level, MIN_LEVEL, MAX_LEVEL),
-          band: String(entry.band || entry.Band || "").trim(),
-          sentence: String(entry.sentence || entry.simple_sentence || entry.simpleSentence || "").trim() || `Please spell the word ${word}.`,
-          sortOrder: Number(entry.sort_order || entry.sortOrder || entry.No || index + 1) || index + 1
+          listId: normaliseWordListId(row.list_id || row.listId, defaultListId),
+          level,
+          band: String(row.band || row.Band || "").trim(),
+          sentence: String(row.sentence || row.simple_sentence || row.simpleSentence || "").trim() || `Please spell the word ${word}.`,
+          sortOrder: Number(row.sort_order || row.sortOrder || row.No || index + 1) || index + 1
         };
       })
       .filter(Boolean)
-      .sort((a, b) => a.level - b.level || a.sortOrder - b.sortOrder || a.word.localeCompare(b.word));
+      .sort((a, b) => a.listId.localeCompare(b.listId) || a.level - b.level || a.sortOrder - b.sortOrder || a.word.localeCompare(b.word));
   }
 
   function groupWordEntriesByLevel(entries) {
@@ -1630,12 +1677,114 @@
     }, {});
   }
 
-  function setWordEntries(entries) {
-    WORD_ENTRIES = normaliseWordEntries(entries);
+  function getListIdsWithEntries() {
+    return new Set(ALL_WORD_ENTRIES.map((entry) => entry.listId));
+  }
+
+  function getSelectedWordListId(targetState = state) {
+    const requested = normaliseWordListId(targetState && targetState.selectedWordListId, "");
+    const listIdsWithEntries = getListIdsWithEntries();
+    const knownListIds = new Set(WORD_LISTS.map((list) => list.id));
+    if (requested && (!wordDefinitionsLoadedFromDatabase || knownListIds.has(requested) || listIdsWithEntries.has(requested))) {
+      return requested;
+    }
+
+    const firstWithEntries = WORD_LISTS.find((list) => listIdsWithEntries.has(list.id));
+    return firstWithEntries ? firstWithEntries.id : DEFAULT_WORD_LIST_ID;
+  }
+
+  function getSelectedWordList(targetState = state) {
+    const selectedListId = getSelectedWordListId(targetState);
+    return WORD_LISTS.find((list) => list.id === selectedListId) || {
+      id: selectedListId,
+      name: selectedListId === DEFAULT_WORD_LIST_ID ? "Graded spelling word bank" : selectedListId,
+      description: "",
+      sortOrder: 9999
+    };
+  }
+
+  function getAvailableLevels() {
+    return Object.keys(WORD_ENTRIES_BY_LEVEL)
+      .map(Number)
+      .filter((level) => Number.isInteger(level))
+      .sort((a, b) => a - b);
+  }
+
+  function isAvailableLevel(level) {
+    const safeLevel = Number(level);
+    return Number.isInteger(safeLevel) && getAvailableLevels().includes(safeLevel);
+  }
+
+  function getLevelTitle(level) {
+    const entries = getLevelEntries(level);
+    const bands = entries.map((entry) => entry.band).filter(Boolean);
+    if (bands.length) {
+      const counts = bands.reduce((acc, band) => {
+        acc.set(band, (acc.get(band) || 0) + 1);
+        return acc;
+      }, new Map());
+      return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+    }
+    return `Level ${level}`;
+  }
+
+  function applyActiveWordList(targetState = state) {
+    const selectedListId = getSelectedWordListId(targetState);
+    if (targetState) {
+      targetState.selectedWordListId = selectedListId;
+    }
+
+    WORD_ENTRIES = ALL_WORD_ENTRIES.filter((entry) => entry.listId === selectedListId);
     WORD_ENTRIES_BY_LEVEL = groupWordEntriesByLevel(WORD_ENTRIES);
-    refreshActiveWords(state);
+
+    if (!targetState) {
+      return;
+    }
+
+    const availableLevels = getAvailableLevels();
+    const availableLevelSet = new Set(availableLevels);
+    const selectedLevel = Number(targetState.selectedLevel);
+
+    if (targetState.selectedLevel && availableLevels.length > 0 && !availableLevelSet.has(selectedLevel)) {
+      targetState.selectedLevel = null;
+      targetState.unlockedLevels = [];
+      targetState.queue = [];
+    } else if (targetState.selectedLevel) {
+      targetState.selectedLevel = selectedLevel;
+      targetState.unlockedLevels = getUnlockedLevels(targetState);
+    }
+
+    refreshActiveWords(targetState);
+  }
+
+  function setWordDefinitions(entries, lists = WORD_LISTS) {
+    const normalisedLists = normaliseWordLists(lists);
+    const listIdsFromEntries = Array.from(new Set((Array.isArray(entries) ? entries : [])
+      .map((entry) => normaliseWordListId((entry && (entry.list_id || entry.listId)) || "", ""))
+      .filter(Boolean)));
+    const existingIds = new Set(normalisedLists.map((list) => list.id));
+    const inferredLists = listIdsFromEntries
+      .filter((listId) => !existingIds.has(listId))
+      .map((listId, index) => ({
+        id: listId,
+        name: listId === DEFAULT_WORD_LIST_ID ? "Graded spelling word bank" : listId,
+        description: "",
+        sortOrder: 1000 + index
+      }));
+
+    WORD_LISTS = [...normalisedLists, ...inferredLists];
+    if (!WORD_LISTS.length) {
+      WORD_LISTS = FALLBACK_WORD_LISTS.slice();
+    }
+
+    ALL_WORD_ENTRIES = normaliseWordEntries(entries, { defaultListId: DEFAULT_WORD_LIST_ID });
+    applyActiveWordList(state);
     ensureProgressForActiveWords(state);
     renderLevelSelector();
+  }
+
+  function setWordEntries(entries) {
+    setWordDefinitions(entries, WORD_LISTS);
   }
 
   function getLevelEntries(level) {
@@ -1647,16 +1796,19 @@
   }
 
   function getUnlockedLevels(targetState) {
-    if (!targetState.selectedLevel) {
+    if (!targetState || !targetState.selectedLevel) {
       return [];
     }
 
+    const selectedLevel = Number(targetState.selectedLevel);
+    const availableLevels = getAvailableLevels();
+    const availableLevelSet = new Set(availableLevels);
     const levels = Array.isArray(targetState.unlockedLevels) && targetState.unlockedLevels.length
       ? targetState.unlockedLevels
-      : [targetState.selectedLevel];
+      : [selectedLevel];
 
-    return Array.from(new Set(levels.map(Number)))
-      .filter((level) => Number.isInteger(level) && level >= MIN_LEVEL && level <= MAX_LEVEL)
+    return Array.from(new Set([...levels.map(Number), selectedLevel]))
+      .filter((level) => Number.isInteger(level) && (availableLevels.length === 0 || availableLevelSet.has(level)))
       .sort((a, b) => a - b);
   }
 
@@ -1678,10 +1830,38 @@
     }
   }
 
+  function renderWordListSelector() {
+    if (!elements.wordListControl || !elements.wordListSelect) {
+      return;
+    }
+
+    const listIdsWithEntries = getListIdsWithEntries();
+    const selectableLists = WORD_LISTS.filter((list) => listIdsWithEntries.has(list.id));
+    elements.wordListControl.hidden = selectableLists.length <= 1;
+    elements.wordListSelect.innerHTML = "";
+
+    const selectedListId = getSelectedWordListId();
+    const listsToRender = selectableLists.length ? selectableLists : WORD_LISTS;
+    for (const list of listsToRender) {
+      const option = document.createElement("option");
+      option.value = list.id;
+      option.textContent = list.name || list.id;
+      option.selected = list.id === selectedListId;
+      elements.wordListSelect.appendChild(option);
+    }
+
+    const selectedList = getSelectedWordList();
+    if (elements.wordListDescription) {
+      elements.wordListDescription.textContent = selectedList.description || "";
+    }
+  }
+
   function renderLevelSelector() {
     if (!elements.levelPanel || !elements.levelGrid) {
       return;
     }
+
+    renderWordListSelector();
 
     const hasLevel = Boolean(state && state.selectedLevel);
     if (!hasLevel) {
@@ -1697,11 +1877,21 @@
       elements.levelToggleButton.setAttribute("aria-expanded", String(!levelPanelCollapsed));
     }
 
+    const selectedList = getSelectedWordList();
     elements.levelStatus.textContent = hasLevel
-      ? `Current level ${state.selectedLevel}. You can change it at any time.`
-      : (currentUser ? "Choose the level that feels right. You can change it at any time." : "Choose a spelling level. Sign in to save it online.");
+      ? `${selectedList.name}: current ${getLevelTitle(state.selectedLevel)}. You can change it at any time.`
+      : (currentUser ? "Choose the spelling level that feels right. You can change it at any time." : "Choose a spelling level. Sign in to save it online.");
 
-    for (let level = MIN_LEVEL; level <= MAX_LEVEL; level += 1) {
+    const availableLevels = getAvailableLevels();
+    if (availableLevels.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "small-note";
+      empty.textContent = "No words are available for this list yet.";
+      elements.levelGrid.appendChild(empty);
+      return;
+    }
+
+    for (const level of availableLevels) {
       const examples = getLevelEntries(level).slice(0, 10).map((entry) => entry.word);
       const mastery = getLevelMasteryStats(level);
       const isSelected = state.selectedLevel === level;
@@ -1711,9 +1901,10 @@
       tile.setAttribute("role", "button");
       tile.setAttribute("tabindex", "0");
       tile.setAttribute("aria-pressed", String(isSelected));
-      tile.setAttribute("aria-label", `Choose level ${level}. ${mastery.mastered} of ${mastery.total} words mastered.`);
+      tile.setAttribute("aria-label", `Choose ${getLevelTitle(level)}. ${mastery.mastered} of ${mastery.total} words mastered.`);
       tile.innerHTML = `
-        <h3>Level ${level}</h3>
+        <h3>${getLevelTitle(level)}</h3>
+        <p class="level-tile__label">Level ${level}</p>
         <p class="level-tile__mastery">${mastery.mastered}/${mastery.total} words mastered</p>
         <p>${examples.join(", ") || "Words loading…"}</p>
       `;
@@ -1751,7 +1942,7 @@
     }
 
     const level = Number(tile.dataset.level);
-    if (!Number.isInteger(level) || level < MIN_LEVEL || level > MAX_LEVEL) {
+    if (!isAvailableLevel(level)) {
       return;
     }
 
@@ -1772,8 +1963,35 @@
     chooseStartingLevel(Number(tile.dataset.level));
   }
 
+  function handleWordListChoice(event) {
+    const nextListId = normaliseWordListId(event.target.value, "");
+    if (!nextListId || nextListId === state.selectedWordListId) {
+      return;
+    }
+
+    state.selectedWordListId = nextListId;
+    applyActiveWordList(state);
+    state.selectedLevel = null;
+    state.unlockedLevels = [];
+    state.queue = [];
+    currentWord = null;
+    clearAutoAdvance();
+    saveState();
+    if (currentUser) {
+      void updateProfileStartingLevel(null);
+      void saveRemoteProgressNow();
+    }
+    levelPanelCollapsed = false;
+    renderLevelSelector();
+    selectNextWord();
+    renderStats();
+  }
+
   function chooseStartingLevel(level) {
-    const safeLevel = clamp(Number(level), MIN_LEVEL, MAX_LEVEL);
+    const safeLevel = Number(level);
+    if (!isAvailableLevel(safeLevel)) {
+      return;
+    }
     state.selectedLevel = safeLevel;
     state.unlockedLevels = Array.from(new Set([...(state.unlockedLevels || []), safeLevel]))
       .filter((levelValue) => Number.isInteger(Number(levelValue)))
@@ -1809,11 +2027,12 @@
     };
   }
 
-  function makeInitialState(selectedLevel = null) {
-    const safeLevel = Number.isInteger(Number(selectedLevel)) ? clamp(Number(selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
+  function makeInitialState(selectedLevel = null, selectedWordListId = null) {
+    const safeLevel = Number.isInteger(Number(selectedLevel)) ? Number(selectedLevel) : null;
     const initialState = {
-      version: 14,
+      version: 15,
       lastUpdatedAt: Date.now(),
+      selectedWordListId: normaliseWordListId(selectedWordListId || DEFAULT_WORD_LIST_ID),
       selectedLevel: safeLevel,
       unlockedLevels: safeLevel ? [safeLevel] : [],
       points: 0,
@@ -1828,10 +2047,14 @@
       progress: {}
     };
 
-    if (safeLevel) {
+    applyActiveWordList(initialState);
+
+    if (safeLevel && isAvailableLevel(safeLevel)) {
       ensureProgressForActiveWords(initialState);
       fillQueueToSize(initialState, ACTIVE_WORD_TARGET);
     } else {
+      initialState.selectedLevel = null;
+      initialState.unlockedLevels = [];
       refreshActiveWords(initialState);
     }
 
@@ -1856,10 +2079,11 @@
 
     try {
       const parsed = JSON.parse(raw);
-      const selectedLevel = Number.isInteger(Number(parsed.selectedLevel)) ? clamp(Number(parsed.selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
+      const selectedLevel = Number.isInteger(Number(parsed.selectedLevel)) ? Number(parsed.selectedLevel) : null;
       const loaded = {
-        version: 14,
+        version: 15,
         lastUpdatedAt: Number.isFinite(Number(parsed.lastUpdatedAt)) ? Number(parsed.lastUpdatedAt) : 0,
+        selectedWordListId: normaliseWordListId(parsed.selectedWordListId || parsed.wordListId || DEFAULT_WORD_LIST_ID),
         selectedLevel,
         unlockedLevels: Array.isArray(parsed.unlockedLevels) ? parsed.unlockedLevels : (selectedLevel ? [selectedLevel] : []),
         points: Number.isFinite(parsed.points) ? Math.max(0, parsed.points) : 0,
@@ -1873,6 +2097,8 @@
         turn: Number.isFinite(parsed.turn) ? parsed.turn : 0,
         progress: parsed.progress && typeof parsed.progress === "object" ? parsed.progress : {}
       };
+
+      applyActiveWordList(loaded);
 
       if (!loaded.selectedLevel) {
         loaded.queue = [];
@@ -1979,7 +2205,7 @@
     const progress = state.progress[currentWord];
     elements.wordLength.textContent = `${currentWord.length} letter word for ${points} ${pluralise(points, "point")}`;
     const entry = getEntryForWord(currentWord);
-    elements.contextClue.textContent = entry ? `Level ${entry.level}${entry.band ? ` · ${entry.band}` : ""}` : (CONTEXT_CLUES[currentWord] || "");
+    elements.contextClue.textContent = entry ? `${getSelectedWordList().name} · ${entry.band || `Level ${entry.level}`}` : (CONTEXT_CLUES[currentWord] || "");
     elements.revealWordButton.disabled = !canRevealCurrentWord();
     renderStreak(progress.correctStreak || 0);
   }
@@ -2194,7 +2420,9 @@
     }
 
     const currentLevel = unlockedLevels[unlockedLevels.length - 1];
-    if (currentLevel >= MAX_LEVEL) {
+    const availableLevels = getAvailableLevels();
+    const currentIndex = availableLevels.indexOf(currentLevel);
+    if (currentIndex === -1 || currentIndex >= availableLevels.length - 1) {
       return null;
     }
 
@@ -2206,7 +2434,7 @@
       return null;
     }
 
-    const nextLevel = currentLevel + 1;
+    const nextLevel = availableLevels[currentIndex + 1];
     if (!targetState.unlockedLevels.includes(nextLevel)) {
       targetState.unlockedLevels.push(nextLevel);
       ensureProgressForActiveWords(targetState);
@@ -2233,7 +2461,7 @@
     }
     elements.battlePointNextText.textContent = `Next battle point in ${getCorrectSpellingsUntilBattlePoint()} words time`;
     const highestLevel = getUnlockedLevels(state).slice(-1)[0] || "—";
-    elements.wordLevelBadge.textContent = state.selectedLevel ? `Level ${state.selectedLevel} · ${WORDS.length} words active` : "Choose a level";
+    elements.wordLevelBadge.textContent = state.selectedLevel ? `${getLevelTitle(state.selectedLevel)} · ${WORDS.length} words active` : "Choose a level";
     elements.shopOpenTotal.textContent = `${availableCount}/${ACTIVE_CREATURE_CARD_TEMPLATES.length}`;
 
     if (unlockedCount >= ACTIVE_CARD_PACKS.length) {
@@ -2944,30 +3172,42 @@ function scoreWord(word) {
       return;
     }
 
-    let allRows = await fetchWordEntryRows({ listId: "graded-5000" });
+    let listRows = FALLBACK_WORD_LISTS.slice();
+    const { data: dbLists, error: listError } = await supabaseClient
+      .from("word_lists")
+      .select("id,name,description,sort_order")
+      .order("sort_order", { ascending: true });
 
-    if (allRows.length === 0) {
-      allRows = await fetchWordEntryRows({ listId: null });
+    if (!listError && Array.isArray(dbLists) && dbLists.length > 0) {
+      listRows = dbLists;
     }
 
+    const allRows = await fetchWordEntryRows({ listId: null });
+
     if (allRows.length > 0) {
-      setWordEntries(allRows);
+      wordDefinitionsLoadedFromDatabase = true;
+      setWordDefinitions(allRows, listRows);
       state = restoreStateShape(state);
+      applyActiveWordList(state);
       saveState();
+      selectNextWord();
       return;
     }
 
     elements.authStatus.textContent = "Using local word list. No database words were returned.";
+    wordDefinitionsLoadedFromDatabase = false;
+    setWordDefinitions(window.GRADED_SPELLING_WORDS || [], FALLBACK_WORD_LISTS);
   }
 
   async function fetchWordEntryRows({ listId }) {
     const allRows = [];
     const pageSize = 1000;
 
-    for (let from = 0; from < 6000; from += pageSize) {
+    for (let from = 0; from < 20000; from += pageSize) {
       let query = supabaseClient
         .from("word_entries")
-        .select("word,level,band,simple_sentence,sort_order")
+        .select("list_id,word,level,band,simple_sentence,sort_order")
+        .order("list_id", { ascending: true })
         .order("level", { ascending: true })
         .order("sort_order", { ascending: true })
         .range(from, from + pageSize - 1);
@@ -3028,6 +3268,7 @@ function scoreWord(word) {
       pendingWordAttemptsByUser.clear();
       levelMasteryCountsByLevel = new Map();
       state = loadStateFromKey(getAnonymousStorageKey());
+      applyActiveWordList(state);
       currentWord = null;
       renderStats();
       renderShop();
@@ -3047,17 +3288,21 @@ function scoreWord(word) {
   async function loadSignedInCacheState(userId = getCurrentUserId()) {
     if (!supabaseClient || !isCurrentUserId(userId)) return;
 
-    const [remoteState, startingLevel] = await Promise.all([
+    const [remoteState, startingChoice] = await Promise.all([
       fetchRemoteProgressState(userId),
-      fetchProfileStartingLevel(userId)
+      fetchProfileStartingChoice(userId)
     ]);
 
     if (!isCurrentUserId(userId)) return;
 
-    state = remoteState ? restoreStateShape(remoteState) : makeInitialState(startingLevel);
-    if (startingLevel) {
-      state.selectedLevel = startingLevel;
-      state.unlockedLevels = unionNumbers(state.unlockedLevels || [], [startingLevel]);
+    state = remoteState ? restoreStateShape(remoteState) : makeInitialState(startingChoice.level, startingChoice.listId);
+    if (startingChoice.listId) {
+      state.selectedWordListId = startingChoice.listId;
+      applyActiveWordList(state);
+    }
+    if (startingChoice.level && isAvailableLevel(startingChoice.level)) {
+      state.selectedLevel = startingChoice.level;
+      state.unlockedLevels = unionNumbers(state.unlockedLevels || [], [startingChoice.level]);
     }
     ensureProgressForActiveWords(state);
     cleanQueue(state);
@@ -3066,19 +3311,34 @@ function scoreWord(word) {
     window.localStorage.setItem(getStorageKeyForUserId(userId), JSON.stringify(state));
   }
 
-  async function fetchProfileStartingLevel(userId = getCurrentUserId()) {
-    if (!supabaseClient || !isCurrentUserId(userId)) return null;
-    const { data, error } = await supabaseClient
+  async function fetchProfileStartingChoice(userId = getCurrentUserId()) {
+    const emptyChoice = { level: null, listId: null };
+    if (!supabaseClient || !isCurrentUserId(userId)) return emptyChoice;
+
+    let { data, error } = await supabaseClient
       .from("profiles")
-      .select("starting_level")
+      .select("starting_level,starting_list_id")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (!isCurrentUserId(userId) || error || !data || !Number.isInteger(Number(data.starting_level))) {
-      return null;
+    if (error && String(error.message || "").includes("starting_list_id")) {
+      const fallback = await supabaseClient
+        .from("profiles")
+        .select("starting_level")
+        .eq("user_id", userId)
+        .maybeSingle();
+      data = fallback.data;
+      error = fallback.error;
     }
 
-    return clamp(Number(data.starting_level), MIN_LEVEL, MAX_LEVEL);
+    if (!isCurrentUserId(userId) || error || !data) {
+      return emptyChoice;
+    }
+
+    return {
+      level: Number.isInteger(Number(data.starting_level)) ? Number(data.starting_level) : null,
+      listId: data.starting_list_id ? normaliseWordListId(data.starting_list_id, "") : null
+    };
   }
 
   async function fetchRemoteProgressState(userId = getCurrentUserId()) {
@@ -3139,7 +3399,13 @@ function scoreWord(word) {
       return;
     }
 
-    const { data, error } = await supabaseClient.rpc("get_spelling_level_mastery_counts");
+    const selectedListId = getSelectedWordListId();
+    let { data, error } = await supabaseClient.rpc("get_spelling_level_mastery_counts", { p_list_id: selectedListId });
+    if (error) {
+      const fallback = await supabaseClient.rpc("get_spelling_level_mastery_counts");
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (!isCurrentUserId(userId)) return;
 
     if (error || !Array.isArray(data)) {
@@ -3147,6 +3413,7 @@ function scoreWord(word) {
       return;
     }
 
+    const availableLevelSet = new Set(getAvailableLevels());
     levelMasteryCountsByLevel = new Map(data
       .map((row) => [
         Number(row.level),
@@ -3155,7 +3422,7 @@ function scoreWord(word) {
           total: Math.max(0, Number(row.total_words || 0))
         }
       ])
-      .filter(([level]) => Number.isInteger(level) && level >= MIN_LEVEL && level <= MAX_LEVEL));
+      .filter(([level]) => Number.isInteger(level) && (!availableLevelSet.size || availableLevelSet.has(level))));
   }
 
   async function hydrateBalanceFromSupabase(userId = getCurrentUserId()) {
@@ -3314,14 +3581,16 @@ function scoreWord(word) {
 
   function mergeProgressStates(localState, remoteState) {
     const local = restoreStateShape(localState || makeInitialState());
-    const remote = restoreStateShape(remoteState || makeInitialState(local.selectedLevel || null));
+    const remote = restoreStateShape(remoteState || makeInitialState(local.selectedLevel || null, local.selectedWordListId || DEFAULT_WORD_LIST_ID));
     const newer = Number(local.lastUpdatedAt || 0) >= Number(remote.lastUpdatedAt || 0) ? local : remote;
+    const selectedWordListId = newer.selectedWordListId || local.selectedWordListId || remote.selectedWordListId || DEFAULT_WORD_LIST_ID;
     const selectedLevel = newer.selectedLevel || local.selectedLevel || remote.selectedLevel || null;
 
     const merged = {
-      ...makeInitialState(selectedLevel),
+      ...makeInitialState(selectedLevel, selectedWordListId),
       ...newer,
-      version: 14,
+      version: 15,
+      selectedWordListId,
       selectedLevel,
       lastUpdatedAt: Math.max(Number(local.lastUpdatedAt || 0), Number(remote.lastUpdatedAt || 0), Date.now()),
       unlockedLevels: unionNumbers(local.unlockedLevels, remote.unlockedLevels, selectedLevel ? [selectedLevel] : []),
@@ -3499,6 +3768,7 @@ function scoreWord(word) {
     currentUser = null;
     hideAdminPanel();
     state = loadStateFromKey(getAnonymousStorageKey());
+    applyActiveWordList(state);
     currentWord = null;
     renderAuthPanel();
     renderLevelSelector();
@@ -3528,21 +3798,31 @@ function scoreWord(word) {
 
   async function updateProfileStartingLevel(level, userId = getCurrentUserId()) {
     if (!supabaseClient || !isCurrentUserId(userId)) return;
-    const safeLevel = Number.isInteger(Number(level)) ? clamp(Number(level), MIN_LEVEL, MAX_LEVEL) : null;
-    if (!safeLevel) return;
+    const safeLevel = Number.isInteger(Number(level)) ? Number(level) : null;
+    const selectedListId = getSelectedWordListId();
 
     const username = getCurrentUsername();
     const email = currentUser.email || null;
-    await supabaseClient
+    const payload = {
+      user_id: userId,
+      email,
+      display_name: username,
+      username,
+      starting_level: safeLevel,
+      starting_list_id: selectedListId,
+      updated_at: new Date().toISOString()
+    };
+
+    let { error } = await supabaseClient
       .from("profiles")
-      .upsert({
-        user_id: userId,
-        email,
-        display_name: username,
-        username,
-        starting_level: safeLevel,
-        updated_at: new Date().toISOString()
-      }, { onConflict: "user_id" });
+      .upsert(payload, { onConflict: "user_id" });
+
+    if (error && String(error.message || "").includes("starting_list_id")) {
+      const { starting_list_id: _startingListId, ...fallbackPayload } = payload;
+      await supabaseClient
+        .from("profiles")
+        .upsert(fallbackPayload, { onConflict: "user_id" });
+    }
   }
 
   function queueRemoteProgressSave() {
@@ -3555,8 +3835,9 @@ function scoreWord(word) {
 
   function makeRemoteCacheState() {
     return {
-      version: state.version || 14,
+      version: state.version || 15,
       lastUpdatedAt: Date.now(),
+      selectedWordListId: getSelectedWordListId(),
       selectedLevel: state.selectedLevel || null,
       unlockedLevels: getUnlockedLevels(state),
       queue: Array.isArray(state.queue) ? state.queue.slice(0, ACTIVE_WORD_TARGET) : [],
@@ -3608,19 +3889,24 @@ function scoreWord(word) {
   }
 
   function restoreStateShape(savedState) {
-    const selectedLevel = Number.isInteger(Number(savedState.selectedLevel)) ? clamp(Number(savedState.selectedLevel), MIN_LEVEL, MAX_LEVEL) : null;
+    const sourceState = savedState && typeof savedState === "object" ? savedState : {};
+    const selectedLevel = Number.isInteger(Number(sourceState.selectedLevel)) ? Number(sourceState.selectedLevel) : null;
+    const selectedWordListId = normaliseWordListId(sourceState.selectedWordListId || sourceState.wordListId || DEFAULT_WORD_LIST_ID);
     const restored = {
-      ...makeInitialState(selectedLevel),
-      ...savedState,
-      version: 14,
-      lastUpdatedAt: Number.isFinite(Number(savedState.lastUpdatedAt)) ? Number(savedState.lastUpdatedAt) : 0,
+      ...makeInitialState(selectedLevel, selectedWordListId),
+      ...sourceState,
+      version: 15,
+      lastUpdatedAt: Number.isFinite(Number(sourceState.lastUpdatedAt)) ? Number(sourceState.lastUpdatedAt) : 0,
+      selectedWordListId,
       selectedLevel,
-      totalCorrectSpellings: Number.isFinite(Number(savedState.totalCorrectSpellings)) ? Math.max(0, Number(savedState.totalCorrectSpellings)) : 0,
-      progress: savedState.progress && typeof savedState.progress === "object" ? savedState.progress : {},
-      ownedCards: sanitiseOwnedCards(savedState.ownedCards || []),
-      unlockedPackIds: Array.isArray(savedState.unlockedPackIds) ? savedState.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID],
-      unlockedLevels: Array.isArray(savedState.unlockedLevels) ? savedState.unlockedLevels : (selectedLevel ? [selectedLevel] : [])
+      totalCorrectSpellings: Number.isFinite(Number(sourceState.totalCorrectSpellings)) ? Math.max(0, Number(sourceState.totalCorrectSpellings)) : 0,
+      progress: sourceState.progress && typeof sourceState.progress === "object" ? sourceState.progress : {},
+      ownedCards: sanitiseOwnedCards(sourceState.ownedCards || []),
+      unlockedPackIds: Array.isArray(sourceState.unlockedPackIds) ? sourceState.unlockedPackIds : [INITIAL_UNLOCKED_PACK_ID],
+      unlockedLevels: Array.isArray(sourceState.unlockedLevels) ? sourceState.unlockedLevels : (selectedLevel ? [selectedLevel] : [])
     };
+
+    applyActiveWordList(restored);
 
     if (restored.selectedLevel) {
       ensureProgressForActiveWords(restored);
